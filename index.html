@@ -2203,53 +2203,64 @@ function toggleMute(){const en=Audio.toggle();document.getElementById('muteBtn')
 // ── Mobil Kontroller ──
 (function(){
     const isTouchMobile = ('ontouchstart' in window) && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (!isTouchMobile) return;
+    if(!isTouchMobile) return;
 
-    // Kontrol tuşlarını başlangıçta GİZLE
     document.getElementById('mobileControls').style.display = 'none';
     document.getElementById('rotateScreen').style.display = 'none';
 
-    // startGame override — dikeyde uyarı göster, yataydaysa başlat
-    const _origStart = window.startGame;
-    window.startGame = function(){
-        const portrait = window.innerHeight > window.innerWidth;
-        if(portrait){
-            // Menüyü gizleme! Sadece uyarı göster
-            document.getElementById('rotateScreen').style.display = 'flex';
-            window._pendingStart = true;
-            return;
+    function isPortrait(){ return window.innerHeight > window.innerWidth; }
+
+    function launchGame(){
+        // Asıl startGame zincirini çalıştır (mode override → startGame_original)
+        if(typeof startGame_original === 'function'){
+            // Mode/challenge ayarlarını uygula
+            if(typeof currentMode !== 'undefined'){
+                window.activeGameMode = currentMode;
+                window.activeChallenge = currentChallenge;
+                if(currentMode==='beast' && typeof initBeastMode==='function') initBeastMode();
+                if(currentMode==='random') window.randomModeActiveBuff = (typeof getRandomBuff==='function') ? getRandomBuff() : null;
+            }
+            startGame_original();
         }
-        _origStart && _origStart();
+        document.getElementById('rotateScreen').style.display = 'none';
         document.getElementById('mobileControls').style.display = 'block';
+        window._waitingToStart = false;
+    }
+
+    // startGame override
+    window.startGame = function(){
+        if(isPortrait()){
+            document.getElementById('rotateScreen').style.display = 'flex';
+            window._waitingToStart = true;
+        } else {
+            launchGame();
+        }
     };
 
-    // Orientation değişince
-    function onOrientationChange(){
-        const portrait = window.innerHeight > window.innerWidth;
-        const gameContainer = document.getElementById('gameContainer');
-        const inGame = gameContainer && gameContainer.style.display !== 'none';
-
-        if(!portrait && window._pendingStart){
-            // Yatay çevrildi, oyun başlatılmayı bekliyordu
-            window._pendingStart = false;
-            document.getElementById('rotateScreen').style.display = 'none';
-            _origStart && _origStart();
-            document.getElementById('mobileControls').style.display = 'block';
-            return;
-        }
-
-        // Oyun oynanırken yönelim değişimi
-        if(inGame){
-            document.getElementById('rotateScreen').style.display = portrait ? 'flex' : 'none';
-        } else if(portrait && window._pendingStart){
-            // Hâlâ dikey, menü yerine uyarı göster
-            document.getElementById('rotateScreen').style.display = 'flex';
-        }
+    // Orientation değişimi — 300ms bekle (tarayıcı boyutu güncellesin)
+    function onOrient(){
+        setTimeout(function(){
+            if(!isPortrait()){
+                if(window._waitingToStart){
+                    launchGame();
+                } else {
+                    // Oyun oynanırken yataya döndü
+                    document.getElementById('rotateScreen').style.display = 'none';
+                    document.getElementById('mobileControls').style.display =
+                        document.getElementById('gameContainer').style.display !== 'none' ? 'block' : 'none';
+                }
+            } else {
+                // Dikey döndü
+                if(document.getElementById('gameContainer').style.display !== 'none'){
+                    document.getElementById('rotateScreen').style.display = 'flex';
+                    document.getElementById('mobileControls').style.display = 'none';
+                }
+            }
+        }, 300);
     }
-    window.addEventListener('resize', onOrientationChange);
-    window.addEventListener('orientationchange', onOrientationChange);
+    window.addEventListener('resize', onOrient);
+    window.addEventListener('orientationchange', onOrient);
 
-    // Screen API lock
     if(screen.orientation && screen.orientation.lock){
         screen.orientation.lock('landscape').catch(()=>{});
     }
@@ -2260,54 +2271,44 @@ function toggleMute(){const en=Audio.toggle();document.getElementById('muteBtn')
     const MAX_R = 35;
     let active = false, ox = 0, oy = 0;
 
-    zone.addEventListener('touchstart', e => {
-        e.preventDefault(); active = true;
-        const r = zone.getBoundingClientRect();
-        ox = r.left + 60; oy = r.top + 60;
-    }, {passive:false});
+    zone.addEventListener('touchstart', e=>{
+        e.preventDefault(); active=true;
+        const r=zone.getBoundingClientRect();
+        ox=r.left+60; oy=r.top+60;
+    },{passive:false});
 
-    zone.addEventListener('touchmove', e => {
+    zone.addEventListener('touchmove', e=>{
         e.preventDefault();
         if(!active) return;
-        const t = e.touches[0];
-        let dx = t.clientX - ox, dy = t.clientY - oy;
-        const d = Math.hypot(dx,dy);
-        if(d > MAX_R){ dx = dx/d*MAX_R; dy = dy/d*MAX_R; }
-        thumb.style.left = (35+dx)+'px';
-        thumb.style.top  = (35+dy)+'px';
-        if(typeof keys !== 'undefined'){
-            keys.w = dy < -10; keys.s = dy > 10;
-            keys.a = dx < -10; keys.d = dx > 10;
+        const t=e.touches[0];
+        let dx=t.clientX-ox, dy=t.clientY-oy;
+        const d=Math.hypot(dx,dy);
+        if(d>MAX_R){dx=dx/d*MAX_R; dy=dy/d*MAX_R;}
+        thumb.style.left=(35+dx)+'px';
+        thumb.style.top=(35+dy)+'px';
+        if(typeof keys!=='undefined'){
+            keys.w=dy<-10; keys.s=dy>10;
+            keys.a=dx<-10; keys.d=dx>10;
         }
-    }, {passive:false});
+    },{passive:false});
 
-    zone.addEventListener('touchend', e => {
-        e.preventDefault(); active = false;
-        thumb.style.left = '35px'; thumb.style.top = '35px';
-        if(typeof keys !== 'undefined') keys.w=keys.s=keys.a=keys.d=false;
-    }, {passive:false});
+    zone.addEventListener('touchend', e=>{
+        e.preventDefault(); active=false;
+        thumb.style.left='35px'; thumb.style.top='35px';
+        if(typeof keys!=='undefined') keys.w=keys.s=keys.a=keys.d=false;
+    },{passive:false});
 
-    // ── Fire button ──
-    const fireBtn = document.getElementById('fireBtn');
-    fireBtn.addEventListener('touchstart', e => {
+    // ── Ateş butonu ──
+    document.getElementById('fireBtn').addEventListener('touchstart', e=>{
         e.preventDefault();
-        e.stopPropagation();
-        if(typeof mobileShoot === 'function') mobileShoot();
-    }, {passive:false});
+        if(typeof mobileShoot==='function') mobileShoot();
+    },{passive:false});
 
-    // ── Ability button ──
-    const abilityBtn = document.getElementById('abilityBtn');
-    abilityBtn.addEventListener('touchstart', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        if(typeof mobileAbility === 'function') mobileAbility();
-    }, {passive:false});
-
-    // Oyun bitince kontrolleri gizle
-    const origEndGame = window.endGame;
+    // ── Oyun bitince kontrolleri gizle ──
+    const _origEnd = window.endGame;
     window.endGame = function(){
-        document.getElementById('mobileControls').style.display = 'none';
-        origEndGame && origEndGame();
+        document.getElementById('mobileControls').style.display='none';
+        _origEnd && _origEnd();
     };
 
 })();
