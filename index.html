@@ -57,7 +57,7 @@ body{background:#0a0a0f;font-family:'Rajdhani',sans-serif;overflow:hidden;width:
 #scoreBox{position:absolute;top:20px;left:20px;background:rgba(0,0,0,.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 20px;display:flex;flex-direction:column;gap:4px}
 #playerNameHud{color:#00e5a0;font-size:18px;font-weight:700;letter-spacing:1px}
 #sizeDisplay{color:rgba(255,255,255,.7);font-size:14px}
-#leaderboard{position:absolute;top:20px;right:20px;background:rgba(0,0,0,.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 16px;min-width:180px;z-index:150;}
+#leaderboard{position:fixed;top:16px;right:16px;background:rgba(0,0,0,.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px 14px;min-width:160px;z-index:150;}
 .lb-title{color:#ffd700;font-size:14px;font-weight:700;letter-spacing:1px;margin-bottom:8px;text-align:center}
 #lbList{display:flex;flex-direction:column;gap:4px}
 .lb-entry{color:rgba(255,255,255,.8);font-size:13px;display:flex;justify-content:space-between;gap:16px}
@@ -74,8 +74,8 @@ body{background:#0a0a0f;font-family:'Rajdhani',sans-serif;overflow:hidden;width:
 .go-content button{background:linear-gradient(135deg,#9600ff,#00e5a0);border:none;border-radius:8px;padding:12px 32px;color:#fff;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;cursor:pointer;transition:transform .2s;min-height:48px;}
 .go-content button:hover{transform:scale(1.05)}
 .go-content button:last-child{background:rgba(255,255,255,.1)}
-#muteBtn,#fullscreenBtn{position:static;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:16px;cursor:pointer;pointer-events:all;min-width:44px;min-height:44px;}
-#gameTopRight{position:absolute;top:20px;right:20px;display:flex;gap:8px;z-index:200;pointer-events:all;}
+#muteBtn,#fullscreenBtn{background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:10px 14px;color:#fff;font-size:18px;cursor:pointer;pointer-events:all;min-width:44px;min-height:44px;touch-action:manipulation;}
+#gameTopRight{position:fixed;top:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:9999;pointer-events:all;}
 @keyframes megaPulse{0%{opacity:0.6;transform:scale(0.97)}100%{opacity:1;transform:scale(1.03)}}
 @keyframes fadeOut{0%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-60%) scale(1.1)}}
 
@@ -1251,9 +1251,14 @@ let camera={x:0,y:0},mouse={x:0,y:0};
 let keys={w:false,a:false,s:false,d:false};
 let lastWebTime=0,mouseHeld=false,chargeStart=0,animFrame=null;
 let serverWebs=[], mySocketId=null;
-let megaCharge=0;
+let megaCharge=0;window.megaCharge=0;
 const MEGA_MAX=100;
 let gamePaused=false;
+// Global referanslar mobil için
+window.megaCharge=0;window.megaCharge=0;
+window.MEGA_MAX=100;
+window.webs=[];
+window.lastWebTime=0;
 const MAX_CHARGE=1200;
 
 function randInt(min,max){return Math.floor(Math.random()*(max-min+1))+min}
@@ -1511,7 +1516,7 @@ function update(){
         web.x+=web.vx;web.y+=web.vy;web.life-=0.012;
         if(web.x<0||web.x>CONFIG.worldSize||web.y<0||web.y>CONFIG.worldSize||web.life<=0)return false;
         const targets=[player,...bots].filter(t=>t!==web.owner&&t.alive);
-        for(const t of targets){if(dist(web,t)<t.size+web.size&&!(t===player&&abilityActive)){t.size=Math.max(15,t.size*(1-web.damage));spawnParticles(web.x,web.y,web.color,web.charged?14:6);if(web.owner===player){player.score+=20;Audio.webHit();megaCharge=Math.min(MEGA_MAX,megaCharge+18);if(window.activeGameMode==='challenge'&&window.challengeStats)window.challengeStats.webHits++;}return false}}
+        for(const t of targets){if(dist(web,t)<t.size+web.size&&!(t===player&&abilityActive)){t.size=Math.max(15,t.size*(1-web.damage));spawnParticles(web.x,web.y,web.color,web.charged?14:6);if(web.owner===player){player.score+=20;Audio.webHit();megaCharge=Math.min(MEGA_MAX,megaCharge+18);window.megaCharge=megaCharge;if(window.activeGameMode==='challenge'&&window.challengeStats)window.challengeStats.webHits++;}return false}}
         return true;
     });
 
@@ -1761,7 +1766,7 @@ function fireMegaShot(){
     const ty=target?target.y:player.y;
     webs.push(createWeb(player,tx,ty,0,true));
     Audio.tripleShot();
-    megaCharge=0;
+    megaCharge=0;window.megaCharge=0;
     lastWebTime=Date.now();
     if(socket){
         const angle=Math.atan2(ty-player.y,tx-player.x);
@@ -1793,37 +1798,44 @@ document.getElementById('playerName').addEventListener('keydown',e=>{if(e.key===
 
 function toggleFullscreen(){
     const btn = document.getElementById('fullscreenBtn');
-    if(!document.fullscreenElement){
-        document.documentElement.requestFullscreen().then(()=>{
-            btn.textContent = '✕';
-            btn.title = 'Tam ekrandan çık';
-        }).catch(()=>{});
+    const el = document.documentElement;
+    const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+    if(!isFs){
+        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+        if(req) req.call(el).catch(()=>{});
+        btn.textContent = '✕';
     } else {
-        document.exitFullscreen().then(()=>{
-            btn.textContent = '⛶';
-            btn.title = 'Tam ekran';
-        }).catch(()=>{});
+        const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen;
+        if(exit) exit.call(document).catch(()=>{});
+        btn.textContent = '⛶';
     }
 }
 document.addEventListener('fullscreenchange', ()=>{
     const btn = document.getElementById('fullscreenBtn');
-    if(btn) btn.textContent = document.fullscreenElement ? '✕' : '⛶';
+    if(btn) btn.textContent = (document.fullscreenElement||document.webkitFullscreenElement) ? '✕' : '⛶';
+});
+document.addEventListener('webkitfullscreenchange', ()=>{
+    const btn = document.getElementById('fullscreenBtn');
+    if(btn) btn.textContent = (document.fullscreenElement||document.webkitFullscreenElement) ? '✕' : '⛶';
 });
 
 function toggleLb(){
     const list = document.getElementById('lbList');
     const icon = document.getElementById('lbToggleIcon');
-    const collapsed = list.style.display === 'none';
-    list.style.display = collapsed ? 'flex' : 'none';
-    if(icon) icon.textContent = collapsed ? '▼' : '▶';
+    if(!list) return;
+    const isHidden = list.style.display === 'none' || list.style.display === '';
+    list.style.display = isHidden ? 'flex' : 'none';
+    if(icon) icon.textContent = isHidden ? '▼' : '▶';
 }
-// Mobilde başlangıçta kapalı
 window.addEventListener('load', ()=>{
-    if(window.innerWidth < 768){
-        const list = document.getElementById('lbList');
-        const icon = document.getElementById('lbToggleIcon');
-        if(list){ list.style.display='none'; }
-        if(icon){ icon.textContent='▶'; }
+    const list = document.getElementById('lbList');
+    const icon = document.getElementById('lbToggleIcon');
+    if(window.innerWidth < 900 && list){
+        list.style.display = 'none';
+        if(icon) icon.textContent = '▶';
+    } else if(list){
+        list.style.display = 'flex';
+        if(icon) icon.textContent = '▼';
     }
 });
 function toggleMute(){const en=Audio.toggle();document.getElementById('muteBtn').textContent=en?'🔊':'🔇'}
@@ -1939,38 +1951,35 @@ function toggleMute(){const en=Audio.toggle();document.getElementById('muteBtn')
     const fireBtn = document.getElementById('fireBtn');
     fireBtn.addEventListener('touchstart', e => {
         e.preventDefault();
-        // Mega shot öncelikli
-        if(typeof megaCharge!=='undefined' && typeof MEGA_MAX!=='undefined' && megaCharge >= MEGA_MAX){
-            if(typeof fireMegaShot==='function'){ fireMegaShot(); return; }
+        e.stopPropagation();
+        // Mega önce kontrol et
+        if(window.megaCharge >= window.MEGA_MAX && typeof fireMegaShot === 'function'){
+            fireMegaShot();
+            return;
         }
         if(!window.player || !window.player.alive) return;
         const now = Date.now();
-        const cooldown = (typeof hasBuff==='function' && hasBuff('RAPID_FIRE')) ? 600 : 1200;
-        if(now - (window.lastWebTime||0) < cooldown) return;
-        // Hedefi bul — auto aim varsa onu kullan, yoksa sağa ateşle
-        let tx, ty;
-        if(typeof getAutoAimTarget==='function'){
+        const cd = (typeof hasBuff==='function' && hasBuff('RAPID_FIRE')) ? 600 : 1200;
+        if(now - (window.lastWebTime||0) < cd) return;
+        // Hedef: auto-aim varsa onu kullan
+        let tx = window.player.x + 300, ty = window.player.y;
+        if(typeof getAutoAimTarget === 'function'){
             const t = getAutoAimTarget();
             if(t){ tx = t.x; ty = t.y; }
         }
-        if(!tx){ tx = window.player.x + 300; ty = window.player.y; }
-        if(typeof createWeb==='function'){
-            webs = webs || [];
+        if(typeof createWeb === 'function' && window.webs){
             if(typeof hasBuff==='function' && hasBuff('TRIPLE_SHOT')){
-                webs.push(createWeb(window.player,tx,ty,0));
-                setTimeout(()=>{ if(window.player&&window.player.alive) webs.push(createWeb(window.player,tx,ty,0.25)); },100);
-                setTimeout(()=>{ if(window.player&&window.player.alive) webs.push(createWeb(window.player,tx,ty,-0.25)); },200);
-                if(typeof Audio!=='undefined') Audio.tripleShot();
+                window.webs.push(createWeb(window.player,tx,ty,0));
+                setTimeout(()=>{ if(window.player&&window.player.alive) window.webs.push(createWeb(window.player,tx,ty,0.25)); },100);
+                setTimeout(()=>{ if(window.player&&window.player.alive) window.webs.push(createWeb(window.player,tx,ty,-0.25)); },200);
+                if(window.Audio) window.Audio.tripleShot();
             } else {
-                webs.push(createWeb(window.player,tx,ty,0,false));
-                if(typeof Audio!=='undefined') Audio.webShoot();
+                window.webs.push(createWeb(window.player,tx,ty,0,false));
+                if(window.Audio) window.Audio.webShoot();
             }
             window.lastWebTime = now;
-            if(typeof lastWebTime !== 'undefined') lastWebTime = now;
-            if(typeof socket!=='undefined' && socket){
-                const ang = Math.atan2(ty - window.player.y, tx - window.player.x);
-                socket.emit('webShot',{angle:ang, charged:false});
-            }
+            lastWebTime = now;
+            if(window.socket) window.socket.emit('webShot',{angle:Math.atan2(ty-window.player.y,tx-window.player.x),charged:false});
         }
     }, {passive:false});
 
