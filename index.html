@@ -57,12 +57,12 @@ body{background:#0a0a0f;font-family:'Rajdhani',sans-serif;overflow:hidden;width:
 #scoreBox{position:absolute;top:20px;left:20px;background:rgba(0,0,0,.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 20px;display:flex;flex-direction:column;gap:4px}
 #playerNameHud{color:#00e5a0;font-size:18px;font-weight:700;letter-spacing:1px}
 #sizeDisplay{color:rgba(255,255,255,.7);font-size:14px}
-#leaderboard{position:fixed;top:16px;right:16px;background:rgba(0,0,0,.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px 14px;min-width:160px;z-index:150;}
-.lb-title{color:#ffd700;font-size:14px;font-weight:700;letter-spacing:1px;margin-bottom:8px;text-align:center}
+#leaderboard{position:fixed;top:16px;right:16px;background:rgba(0,0,0,.75);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:8px 14px;min-width:160px;z-index:9998;pointer-events:all;}
+.lb-title{color:#ffd700;font-size:14px;font-weight:700;letter-spacing:1px;margin-bottom:8px;text-align:center;cursor:pointer;user-select:none;pointer-events:all;padding:4px 0;}
 #lbList{display:flex;flex-direction:column;gap:4px}
 .lb-entry{color:rgba(255,255,255,.8);font-size:13px;display:flex;justify-content:space-between;gap:16px}
 .lb-entry.me{color:#00e5a0;font-weight:700}
-#webCooldown{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 16px;display:flex;align-items:center;gap:10px;z-index:10;min-width:200px}
+#webCooldown{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:rgba(10,5,20,0.85);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 16px;display:flex;align-items:center;gap:10px;z-index:10;min-width:200px}
 #webBar{height:8px;background:linear-gradient(90deg,#9600ff,#00e5a0);border-radius:4px;width:100%;transition:width .1s}
 #webCooldown span{color:#fff;font-size:13px;font-weight:700;white-space:nowrap}
 #gameOver{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(8px)}
@@ -86,7 +86,7 @@ body{background:#0a0a0f;font-family:'Rajdhani',sans-serif;overflow:hidden;width:
 #joystickThumb{width:50px;height:50px;border-radius:50%;background:rgba(150,0,255,0.7);border:2px solid #9600ff;position:absolute;top:35px;left:35px;transition:none;}
 #fireBtn{position:absolute;bottom:60px;right:40px;width:80px;height:80px;border-radius:50%;background:rgba(150,0,255,0.5);border:3px solid #9600ff;color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;pointer-events:all;user-select:none;}
 #abilityBtn{position:absolute;bottom:160px;right:40px;width:60px;height:60px;border-radius:50%;background:rgba(255,170,0,0.5);border:3px solid #ffaa00;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;pointer-events:all;user-select:none;}
-@media(max-width:768px){#mobileControls{display:block;}}
+/* mobileControls JS ile kontrol edilir */
 
 /* Language Selector */
 #langSelector{position:absolute;top:20px;right:20px;z-index:10;}
@@ -1017,7 +1017,7 @@ function startGame() {
         <span style="color:#ffaa00;font-size:12px;font-weight:700;">💥 MEGA ŞOT</span>
         <span id="megaHitCount" style="color:rgba(255,255,255,0.5);font-size:11px;">0 / 6 vuruş</span>
       </div>
-      <div style="height:12px;background:rgba(255,255,255,0.08);border-radius:6px;overflow:hidden;position:relative;">
+      <div style="height:12px;background:rgba(255,255,255,0.06);border-radius:6px;overflow:hidden;position:relative;">
         <div id="megaBar" style="height:100%;background:linear-gradient(90deg,#ffaa00,#ff3366);border-radius:6px;width:0%;transition:width .15s;box-shadow:0 0 8px #ffaa0088;"></div>
         <!-- Segment lines -->
         <div style="position:absolute;inset:0;display:flex;pointer-events:none;">
@@ -1759,6 +1759,38 @@ canvas.addEventListener('mousedown',e=>{if(e.button!==0||!player||!player.alive)
     }
 });
 
+
+// Mobil ateş fonksiyonu — oyun döngüsüyle aynı scope'ta
+function mobileShoot(){
+    if(typeof player === 'undefined' || !player || !player.alive) return;
+    if(typeof webs === 'undefined') return;
+    // Mega shot
+    if(megaCharge >= MEGA_MAX){ fireMegaShot(); return; }
+    // Normal shot
+    const now = Date.now();
+    const cd = (typeof hasBuff==='function' && hasBuff('RAPID_FIRE')) ? 600 : 1200;
+    if(now - lastWebTime < cd) return;
+    let tx = player.x + 300, ty = player.y;
+    if(typeof getAutoAimTarget==='function'){
+        const t = getAutoAimTarget();
+        if(t){ tx=t.x; ty=t.y; }
+    }
+    if(typeof hasBuff==='function' && hasBuff('TRIPLE_SHOT')){
+        webs.push(createWeb(player,tx,ty,0));
+        setTimeout(()=>{ if(player&&player.alive) webs.push(createWeb(player,tx,ty,0.25)); },100);
+        setTimeout(()=>{ if(player&&player.alive) webs.push(createWeb(player,tx,ty,-0.25)); },200);
+        Audio.tripleShot();
+    } else {
+        webs.push(createWeb(player,tx,ty,0,false));
+        Audio.webShoot();
+    }
+    lastWebTime = now;
+    if(typeof socket!=='undefined'&&socket) socket.emit('webShot',{angle:Math.atan2(ty-player.y,tx-player.x),charged:false});
+}
+function mobileAbility(){
+    if(typeof useAbility==='function') useAbility();
+}
+
 function fireMegaShot(){
     if(!player||!player.alive||megaCharge<MEGA_MAX)return;
     const target=getAutoAimTarget();
@@ -1799,24 +1831,25 @@ document.getElementById('playerName').addEventListener('keydown',e=>{if(e.key===
 function toggleFullscreen(){
     const btn = document.getElementById('fullscreenBtn');
     const el = document.documentElement;
-    const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
     if(!isFs){
-        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
-        if(req) req.call(el).catch(()=>{});
-        btn.textContent = '✕';
+        if(el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+        else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        else if(el.mozRequestFullScreen) el.mozRequestFullScreen();
+        if(btn) btn.textContent = '✕';
     } else {
-        const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen;
-        if(exit) exit.call(document).catch(()=>{});
-        btn.textContent = '⛶';
+        if(document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+        else if(document.webkitExitFullscreen) document.webkitExitFullscreen();
+        else if(document.mozCancelFullScreen) document.mozCancelFullScreen();
+        if(btn) btn.textContent = '⛶';
     }
 }
-document.addEventListener('fullscreenchange', ()=>{
-    const btn = document.getElementById('fullscreenBtn');
-    if(btn) btn.textContent = (document.fullscreenElement||document.webkitFullscreenElement) ? '✕' : '⛶';
-});
-document.addEventListener('webkitfullscreenchange', ()=>{
-    const btn = document.getElementById('fullscreenBtn');
-    if(btn) btn.textContent = (document.fullscreenElement||document.webkitFullscreenElement) ? '✕' : '⛶';
+['fullscreenchange','webkitfullscreenchange','mozfullscreenchange'].forEach(ev => {
+    document.addEventListener(ev, ()=>{
+        const btn = document.getElementById('fullscreenBtn');
+        const isFs = !!(document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement);
+        if(btn) btn.textContent = isFs ? '✕' : '⛶';
+    });
 });
 
 function toggleLb(){
@@ -1952,42 +1985,15 @@ function toggleMute(){const en=Audio.toggle();document.getElementById('muteBtn')
     fireBtn.addEventListener('touchstart', e => {
         e.preventDefault();
         e.stopPropagation();
-        // Mega önce kontrol et
-        if(window.megaCharge >= window.MEGA_MAX && typeof fireMegaShot === 'function'){
-            fireMegaShot();
-            return;
-        }
-        if(!window.player || !window.player.alive) return;
-        const now = Date.now();
-        const cd = (typeof hasBuff==='function' && hasBuff('RAPID_FIRE')) ? 600 : 1200;
-        if(now - (window.lastWebTime||0) < cd) return;
-        // Hedef: auto-aim varsa onu kullan
-        let tx = window.player.x + 300, ty = window.player.y;
-        if(typeof getAutoAimTarget === 'function'){
-            const t = getAutoAimTarget();
-            if(t){ tx = t.x; ty = t.y; }
-        }
-        if(typeof createWeb === 'function' && window.webs){
-            if(typeof hasBuff==='function' && hasBuff('TRIPLE_SHOT')){
-                window.webs.push(createWeb(window.player,tx,ty,0));
-                setTimeout(()=>{ if(window.player&&window.player.alive) window.webs.push(createWeb(window.player,tx,ty,0.25)); },100);
-                setTimeout(()=>{ if(window.player&&window.player.alive) window.webs.push(createWeb(window.player,tx,ty,-0.25)); },200);
-                if(window.Audio) window.Audio.tripleShot();
-            } else {
-                window.webs.push(createWeb(window.player,tx,ty,0,false));
-                if(window.Audio) window.Audio.webShoot();
-            }
-            window.lastWebTime = now;
-            lastWebTime = now;
-            if(window.socket) window.socket.emit('webShot',{angle:Math.atan2(ty-window.player.y,tx-window.player.x),charged:false});
-        }
+        if(typeof mobileShoot === 'function') mobileShoot();
     }, {passive:false});
 
     // ── Ability button ──
     const abilityBtn = document.getElementById('abilityBtn');
     abilityBtn.addEventListener('touchstart', e => {
         e.preventDefault();
-        if(typeof useAbility==='function') useAbility();
+        e.stopPropagation();
+        if(typeof mobileAbility === 'function') mobileAbility();
     }, {passive:false});
 
     // Oyun bitince kontrolleri gizle
