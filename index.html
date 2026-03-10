@@ -174,7 +174,6 @@ body{background:#0a0a0f;font-family:'Rajdhani',sans-serif;overflow:hidden;width:
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script>
 const firebaseConfig = {
     apiKey: "AIzaSyBO4-D9DM_hoeQAdAUhIYqs4rC_bRlLLhk",
@@ -309,7 +308,7 @@ try {
     socket.on('webHitConfirm', d => { megaCharge = Math.min(MEGA_MAX, megaCharge + d.megaGain); });
 
     // Hasar aldık
-    socket.on('tookDamage', d => { if(player) player.size = d.newSize; });
+    socket.on('tookDamage', d => { if(player && d.newSize < player.size) player.size = Math.max(15, d.newSize); }); // sadece küçülme
 
     // Öldürüldük
     socket.on('killedByBot', d => { if(player&&player.alive){ player.alive=false; showNotification('💀 '+d.killerName+' seni yedi!','#ff3366'); setTimeout(()=>endGame(),800); } });
@@ -324,7 +323,7 @@ try {
 
 function emitJoin(name) { if(socket && player) socket.emit('join', {name, color: player.color}); }
 function emitUpdate(x,y,size,score,vx,vy) { if(socket && (!emitUpdate.last || Date.now()-emitUpdate.last>50)) { socket.emit('move',{x,y,size,score,vx:vx||0,vy:vy||0}); emitUpdate.last=Date.now(); } }
-function emitWebShot_old(data) { if(socket) socket.emit('webShot',data); }
+function emitWebShot(data) { if(socket) socket.emit('webShot',data); }
 function emitFoodEaten(id) { if(socket) socket.emit('foodEaten',id); }
 function emitBuffEaten(id) { if(socket) socket.emit('buffEaten',id); }
 function emitPlayerDied() { if(socket) socket.emit('playerDied'); }
@@ -546,18 +545,29 @@ function changeLang(lang) {
 // Cookie consent
 function checkCookie() {
     if(!localStorage.getItem('ww_cookie')) {
-        document.getElementById('cookieBanner').style.display = 'flex';
+        const banner = document.getElementById('cookieBanner');
+        if(banner) banner.style.display = 'flex';
     }
 }
 function acceptCookie() {
     localStorage.setItem('ww_cookie', '1');
-    document.getElementById('cookieBanner').style.display = 'none';
+    const banner = document.getElementById('cookieBanner');
+    if(banner) banner.style.display = 'none';
 }
 
 // Modals
-function showTerms() { document.getElementById('termsModal').classList.add('active'); }
-function showPrivacy() { document.getElementById('privacyModal').classList.add('active'); }
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function showTerms() { 
+    const modal = document.getElementById('termsModal');
+    if(modal) modal.classList.add('active'); 
+}
+function showPrivacy() { 
+    const modal = document.getElementById('privacyModal');
+    if(modal) modal.classList.add('active'); 
+}
+function closeModal(id) { 
+    const modal = document.getElementById(id);
+    if(modal) modal.classList.remove('active'); 
+}
 
 // Online player count (simulated with socket)
 function updateOnlineCount(n) {
@@ -566,7 +576,8 @@ function updateOnlineCount(n) {
 }
 
 window.addEventListener('load', () => {
-    document.getElementById('serverStatus').style.display='flex';
+    const serverStatus = document.getElementById('serverStatus');
+    if(serverStatus) serverStatus.style.display='flex';
     applyLang();
     checkCookie();
     setTimeout(() => updateOnlineCount(Math.floor(Math.random()*8)+3), 1000);
@@ -595,8 +606,10 @@ function selectMode(mode) {
     const btn = document.getElementById('mode-' + mode);
     if(btn) { btn.classList.add('active'); btn.classList.add(mode); }
     // Show/hide sub-panels
-    document.getElementById('partyPanel').style.display = mode === 'party' ? 'flex' : 'none';
-    document.getElementById('challengePanel').style.display = mode === 'challenge' ? 'flex' : 'none';
+    const partyPanel = document.getElementById('partyPanel');
+    const challengePanel = document.getElementById('challengePanel');
+    if(partyPanel) partyPanel.style.display = mode === 'party' ? 'flex' : 'none';
+    if(challengePanel) challengePanel.style.display = mode === 'challenge' ? 'flex' : 'none';
 }
 
 function selectChallenge(idx) {
@@ -613,18 +626,25 @@ function generateRoomCode() {
 
 function createPartyRoom() {
     partyRoomCode = generateRoomCode();
-    document.getElementById('partyRoomCode').textContent = partyRoomCode;
-    document.getElementById('partyRoomInfo').style.display = 'block';
-    document.getElementById('partyCodeInput').value = partyRoomCode;
+    const codeEl = document.getElementById('partyRoomCode');
+    const infoEl = document.getElementById('partyRoomInfo');
+    const inputEl = document.getElementById('partyCodeInput');
+    if(codeEl) codeEl.textContent = partyRoomCode;
+    if(infoEl) infoEl.style.display = 'block';
+    if(inputEl) inputEl.value = partyRoomCode;
     if(socket) socket.emit('createRoom', { code: partyRoomCode });
 }
 
 function joinPartyRoom() {
-    const code = document.getElementById('partyCodeInput').value.toUpperCase().trim();
+    const inputEl = document.getElementById('partyCodeInput');
+    if(!inputEl) return;
+    const code = inputEl.value.toUpperCase().trim();
     if(code.length < 3) { alert('Geçerli bir oda kodu gir!'); return; }
     partyRoomCode = code;
-    document.getElementById('partyRoomCode').textContent = code;
-    document.getElementById('partyRoomInfo').style.display = 'block';
+    const codeEl = document.getElementById('partyRoomCode');
+    const infoEl = document.getElementById('partyRoomInfo');
+    if(codeEl) codeEl.textContent = code;
+    if(infoEl) infoEl.style.display = 'block';
     if(socket) socket.emit('joinRoom', { code });
 }
 
@@ -632,21 +652,27 @@ function copyPartyLink() {
     const url = window.location.origin + '?room=' + partyRoomCode;
     navigator.clipboard.writeText(url).then(() => {
         const btn = event.target;
-        btn.textContent = '✅ Kopyalandı!';
-        setTimeout(() => btn.textContent = '🔗 Linki Kopyala', 2000);
+        if(btn) {
+            btn.textContent = '✅ Kopyalandı!';
+            setTimeout(() => btn.textContent = '🔗 Linki Kopyala', 2000);
+        }
     });
 }
 
 // Check URL for room code on load
 window.addEventListener('load', () => {
-    document.getElementById('serverStatus').style.display='flex';
+    const serverStatus = document.getElementById('serverStatus');
+    if(serverStatus) serverStatus.style.display='flex';
     const params = new URLSearchParams(window.location.search);
     const room = params.get('room');
     if(room) {
         selectMode('party');
-        document.getElementById('partyCodeInput').value = room.toUpperCase();
-        document.getElementById('partyRoomInfo').style.display = 'block';
-        document.getElementById('partyRoomCode').textContent = room.toUpperCase();
+        const inputEl = document.getElementById('partyCodeInput');
+        const infoEl = document.getElementById('partyRoomInfo');
+        const codeEl = document.getElementById('partyRoomCode');
+        if(inputEl) inputEl.value = room.toUpperCase();
+        if(infoEl) infoEl.style.display = 'block';
+        if(codeEl) codeEl.textContent = room.toUpperCase();
         partyRoomCode = room.toUpperCase();
     }
     // Load challenge stars from localStorage
@@ -672,7 +698,25 @@ let beastBoss = null;
 
 function initBeastMode() {
     playerLives = BEAST_CONFIG.lives;
-    // Boss will be created in game loop
+    // Boss oluştur
+    beastBoss = {
+        id: 'beast_boss',
+        name: BEAST_CONFIG.bossName,
+        x: CONFIG.worldSize / 2 + 500,
+        y: CONFIG.worldSize / 2,
+        size: BEAST_CONFIG.bossSize,
+        color: BEAST_CONFIG.bossColor,
+        speed: BEAST_CONFIG.bossSpeed,
+        alive: true,
+        score: 9999,
+        isBot: true,
+        isBoss: true,
+        lastWeb: 0,
+        webCooldown: 800,
+        vx: 0,
+        vy: 0
+    };
+    window.beastBossTarget = beastBoss;
 }
 
 // Random buff mode
@@ -780,27 +824,6 @@ function startGame() {
         </div>
       </div>
 
-      <div style="background:rgba(0,0,0,0.35);border:1px solid rgba(0,229,160,0.2);border-radius:12px;padding:16px;">
-        <div data-i18n="evolution" style="color:#00e5a0;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;margin-bottom:14px;">🕷️ EVRİM</div>
-        <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <img src="/char-larva.jpg" onerror="this.style.display='none'" style="width:36px;height:36px;border-radius:8px;object-fit:cover;border:1px solid #00e5a040;">
-            <div><div style="color:#00e5a0;font-weight:700;">0-50 · Larva</div><div style="color:rgba(255,255,255,0.4);font-size:11px;">Başlangıç formu</div></div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <img src="/char-spider.jpg" onerror="this.style.display='none'" style="width:36px;height:36px;border-radius:8px;object-fit:cover;border:1px solid #9600ff40;">
-            <div><div style="color:#9600ff;font-weight:700;">50-80 · Örümcek</div><div style="color:rgba(255,255,255,0.4);font-size:11px;">Ağ Tuzağı yeteneği</div></div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <img src="/char-spider.jpg" onerror="this.style.display='none'" style="width:36px;height:36px;border-radius:8px;object-fit:cover;border:1px solid #ff336640;filter:hue-rotate(150deg);">
-            <div><div style="color:#ff3366;font-weight:700;">80-110 · Dev Ağ</div><div style="color:rgba(255,255,255,0.4);font-size:11px;">Kalkan yeteneği</div></div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <img src="/char-boss.jpg" onerror="this.style.display='none'" style="width:36px;height:36px;border-radius:8px;object-fit:cover;border:1px solid #ffd70060;">
-            <div><div style="color:#ffd700;font-weight:700;">110+ · Tanrı Ağı</div><div style="color:rgba(255,255,255,0.4);font-size:11px;">Gölge yeteneği</div></div>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- ORTA KOLON: Logo + Giriş + Oyna -->
@@ -910,30 +933,11 @@ function startGame() {
       <div id="menuFooter" style="margin-top:4px;">
         <a href="#" onclick="showTerms();return false;" data-i18n="terms">Kullanım Şartları</a>
         <a href="#" onclick="showPrivacy();return false;" data-i18n="privacy">Gizlilik</a>
-        <a href="/cdn-cgi/l/email-protection#0a6463736b706365646e6f78784a6d676b636624696567" data-i18n="contact">İletişim</a>
+        
       </div>
       <p style="color:rgba(255,255,255,0.12);font-size:10px;">© 2026 Web Wars • All rights reserved</p>
     </div>
 
-    <!-- SAĞ KOLON: Global Skor Tablosu + Güçlendirmeler -->
-    <div style="display:flex;flex-direction:column;gap:20px;">
-      <div style="background:rgba(0,0,0,0.35);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:16px;">
-        <div style="color:#ffd700;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;margin-bottom:14px;" data-i18n="globalRank">🏆 GLOBAL SIRALAMA</div>
-        <div id="globalLbList" style="font-size:13px;">
-          <div style="color:rgba(255,255,255,0.3);font-size:13px;text-align:center;padding:16px 0;">Giriş yaparak sıralamada yer al!</div>
-        </div>
-      </div>
-
-      <div style="background:rgba(0,0,0,0.35);border:1px solid rgba(255,170,0,0.2);border-radius:12px;padding:16px;">
-        <div data-i18n="buffs" style="color:#ffaa00;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;margin-bottom:14px;">⚡ GÜÇLENDİRMELER</div>
-        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
-          <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:18px;">🔱</span><div><div style="color:#fff;font-weight:700;">Üçlü Atış</div><div style="color:rgba(255,255,255,0.4);font-size:11px;">3 ağ aynı anda</div></div></div>
-          <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:18px;">⚡</span><div><div style="color:#fff;font-weight:700;">Hız</div><div style="color:rgba(255,255,255,0.4);font-size:11px;">Hareket hızı +50%</div></div></div>
-          <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:18px;">👾</span><div><div style="color:#fff;font-weight:700;">Dev</div><div style="color:rgba(255,255,255,0.4);font-size:11px;">Anlık boyut artışı</div></div></div>
-          <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:18px;">🔥</span><div><div style="color:#fff;font-weight:700;">Hızlı Ateş</div><div style="color:rgba(255,255,255,0.4);font-size:11px;">Bekleme süresi yok</div></div></div>
-        </div>
-      </div>
-    </div>
 
   </div>
 
@@ -1031,33 +1035,29 @@ function startGame() {
       <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶</button>
     </div>
   </div>
-  <div id="webCooldown" style="flex-direction:column;gap:8px;min-width:240px;">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span style="color:#fff;font-size:12px;font-weight:700;white-space:nowrap;">🕸️ AĞ</span>
-      <div style="flex:1;height:7px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;">
-        <div id="webBar" style="height:100%;background:linear-gradient(90deg,#9600ff,#00e5a0);border-radius:4px;width:0%;transition:width .1s;"></div>
-      </div>
+  <div id="webCooldown" style="flex-direction:column;gap:6px;min-width:220px;">
+    <div style="height:6px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;">
+      <div id="webBar" style="height:100%;background:linear-gradient(90deg,#9600ff,#00e5a0);border-radius:4px;width:0%;transition:width .1s;"></div>
     </div>
     <!-- MEGA BAR -->
-    <div style="background:rgba(255,170,0,0.08);border:1px solid rgba(255,170,0,0.25);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:4px;">
+    <div style="display:flex;flex-direction:column;gap:3px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span style="color:#ffaa00;font-size:12px;font-weight:700;">💥 MEGA ŞOT</span>
-        <span id="megaHitCount" style="color:rgba(255,255,255,0.5);font-size:11px;">0 / 6 vuruş</span>
+        <span style="color:#ffaa00;font-size:11px;font-weight:700;">💥 MEGA ŞOT</span>
+        <span id="megaHitCount" style="color:rgba(255,255,255,0.4);font-size:10px;">0 / 6</span>
       </div>
-      <div style="height:12px;background:rgba(255,255,255,0.06);border-radius:6px;overflow:hidden;position:relative;">
-        <div id="megaBar" style="height:100%;background:linear-gradient(90deg,#ffaa00,#ff3366);border-radius:6px;width:0%;transition:width .15s;box-shadow:0 0 8px #ffaa0088;"></div>
-        <!-- Segment lines -->
+      <div style="height:10px;background:rgba(255,255,255,0.05);border-radius:5px;overflow:hidden;position:relative;">
+        <div id="megaBar" style="height:100%;background:linear-gradient(90deg,#ffaa00,#ff3366);border-radius:5px;width:0%;transition:width .15s;box-shadow:0 0 6px #ffaa0088;"></div>
         <div style="position:absolute;inset:0;display:flex;pointer-events:none;">
-          <div style="flex:1;border-right:1px solid rgba(0,0,0,0.3);"></div>
-          <div style="flex:1;border-right:1px solid rgba(0,0,0,0.3);"></div>
-          <div style="flex:1;border-right:1px solid rgba(0,0,0,0.3);"></div>
-          <div style="flex:1;border-right:1px solid rgba(0,0,0,0.3);"></div>
-          <div style="flex:1;border-right:1px solid rgba(0,0,0,0.3);"></div>
+          <div style="flex:1;border-right:1px solid rgba(0,0,0,0.25);"></div>
+          <div style="flex:1;border-right:1px solid rgba(0,0,0,0.25);"></div>
+          <div style="flex:1;border-right:1px solid rgba(0,0,0,0.25);"></div>
+          <div style="flex:1;border-right:1px solid rgba(0,0,0,0.25);"></div>
+          <div style="flex:1;border-right:1px solid rgba(0,0,0,0.25);"></div>
           <div style="flex:1;"></div>
         </div>
       </div>
       <div id="megaReady" style="display:none;text-align:center;animation:megaPulse 0.6s infinite alternate;">
-        <span style="background:linear-gradient(90deg,#ffaa00,#ff3366);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:4px;">⚡ SPACE → MEGA ŞOT ⚡</span>
+        <span style="background:linear-gradient(90deg,#ffaa00,#ff3366);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:3px;">⚡ SPACE → MEGA ⚡</span>
       </div>
     </div>
   </div>
@@ -1079,6 +1079,12 @@ function startGame() {
     <button onclick="restartGame()">TEKRAR OYNA</button>
     <button onclick="showMenu()">MENÜ</button>
   </div>
+</div>
+
+<!-- Server Status -->
+<div id="serverStatus" style="display:none;">
+  <div id="statusDot"></div>
+  <span>Sunucu Bağlı</span>
 </div>
 
 
@@ -1136,6 +1142,51 @@ const ctx=canvas.getContext('2d');
 
 const CONFIG={worldSize:3000,botCount:15,webSpeed:12,webCooldown:1200,webDamage:0.18,eatSizeRatio:0.75,foodCount:120,buffCount:8,gridSize:150};
 
+// ══════════════════════════════════════════
+//  PERFORMANS: DOM Element Cache
+// ══════════════════════════════════════════
+const DOM = {
+    webBar: null,
+    megaBar: null,
+    megaReady: null,
+    megaHitCount: null,
+    sizeDisplay: null,
+    lbList: null,
+    buffHud: null,
+    gameContainer: null,
+    menu: null,
+    gameOver: null,
+    playerNameHud: null
+};
+
+function cacheDOMElements() {
+    DOM.webBar = document.getElementById('webBar');
+    DOM.megaBar = document.getElementById('megaBar');
+    DOM.megaReady = document.getElementById('megaReady');
+    DOM.megaHitCount = document.getElementById('megaHitCount');
+    DOM.sizeDisplay = document.getElementById('sizeDisplay');
+    DOM.lbList = document.getElementById('lbList');
+    DOM.gameContainer = document.getElementById('gameContainer');
+    DOM.menu = document.getElementById('menu');
+    DOM.gameOver = document.getElementById('gameOver');
+    DOM.playerNameHud = document.getElementById('playerNameHud');
+}
+
+// DOM hazır olunca cache'le
+window.addEventListener('DOMContentLoaded', cacheDOMElements);
+
+
+
+// ── Evrim Görselleri ──
+const evoImages = {};
+(function(){
+    const imgs = {1:'/char-larva.jpg', 2:'/char-spider.jpg', 3:'/char-spider.jpg', 4:'/char-boss.jpg'};
+    Object.entries(imgs).forEach(([stage, src])=>{
+        const img = new Image();
+        img.src = src;
+        img.onload = ()=>{ evoImages[stage] = img; };
+    });
+})();
 
 // ── Evrim Sistemi ──
 const EVOLUTIONS = [
@@ -1317,7 +1368,7 @@ function addBuff(type){
         ex.endTime=Date.now()+BUFFS[type].duration; // sadece süreyi yenile, size ekleme
     } else {
         activeBuffs.push({type,endTime:Date.now()+BUFFS[type].duration});
-        if(type==='GIANT'&&player) player.size=Math.min(player.size*1.4, player.size+25); // max +25
+        if(type==='GIANT'&&player) player.size=Math.min(player.size+20, 120); // sabit +20, max 120 // max +25
     }
 }
 
@@ -1342,8 +1393,11 @@ function createBot(i){
 function createFood(){return{x:randInt(50,CONFIG.worldSize-50),y:randInt(50,CONFIG.worldSize-50),size:randInt(5,12),color:COLORS[randInt(0,COLORS.length-1)],pulse:Math.random()*Math.PI*2}}
 
 function createBuffItem(){
-    const type=BUFF_KEYS[randInt(0,BUFF_KEYS.length-1)];
-    return{x:randInt(100,CONFIG.worldSize-100),y:randInt(100,CONFIG.worldSize-100),type,size:18,color:BUFFS[type].color,pulse:Math.random()*Math.PI*2}
+    const isMine = Math.random() < 0.25; // %25 mayın
+    const type = isMine ? 'MINE' : BUFF_KEYS[randInt(0,BUFF_KEYS.length-1)];
+    const color = isMine ? BUFFS[BUFF_KEYS[randInt(0,BUFF_KEYS.length-1)]].color : BUFFS[type].color; // mayın gerçek buff gibi görünür
+    const fakeType = isMine ? BUFF_KEYS[randInt(0,BUFF_KEYS.length-1)] : type; // görsel olarak farklı type göster
+    return{id:Date.now()+Math.random(),x:randInt(100,CONFIG.worldSize-100),y:randInt(100,CONFIG.worldSize-100),type,displayType:fakeType,size:18,color,pulse:Math.random()*Math.PI*2,isMine,eaten:false}
 }
 
 function createWeb(owner,tx,ty,angleOffset=0,charged=false){
@@ -1353,6 +1407,14 @@ function createWeb(owner,tx,ty,angleOffset=0,charged=false){
 
 function showBeastHUD(){const h=document.createElement('div');h.id='beastHUD';h.style.cssText='position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(255,0,0,0.15);border:1px solid rgba(255,0,0,0.4);border-radius:10px;padding:8px 20px;color:#ff3366;font-family:Bebas Neue,sans-serif;font-size:16px;letter-spacing:2px;z-index:100;text-align:center;';h.innerHTML='👹 BEAST MODE &nbsp;|&nbsp; ❤️❤️❤️';document.body.appendChild(h);}
 function showChallengeHUD(){const h=document.createElement('div');h.id='challengeHUD';h.style.cssText='position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(0,229,160,0.1);border:1px solid rgba(0,229,160,0.3);border-radius:10px;padding:8px 20px;color:#00e5a0;font-family:Bebas Neue,sans-serif;font-size:14px;letter-spacing:2px;z-index:100;';const ch=typeof currentChallenge!=='undefined'?currentChallenge:window.activeChallenge;const names=['Hayatta Kal','Keskin Nişancı','Lider Ol','Avcı','Hız Canavarı'];h.textContent='🎯 '+(names[ch]||'Challenge');document.body.appendChild(h);}
+
+function cleanupModeHUDs(){
+    const beastHUD = document.getElementById('beastHUD');
+    const challengeHUD = document.getElementById('challengeHUD');
+    if(beastHUD) beastHUD.remove();
+    if(challengeHUD) challengeHUD.remove();
+}
+
 function startGame_original(){
     const name=document.getElementById('playerName').value.trim()||'Oyuncu';
     document.getElementById('menu').style.display='none';
@@ -1361,6 +1423,10 @@ function startGame_original(){
     document.getElementById('playerNameHud').textContent=name;
     canvas.width=window.innerWidth;canvas.height=window.innerHeight;
     player=createPlayer(name);
+    
+    // Eski HUD'ları temizle
+    cleanupModeHUDs();
+    
     // Botlar + food server'dan gelecek, client fallback olarak lokal tutar
     bots=[];
     webs=[];
@@ -1370,8 +1436,25 @@ function startGame_original(){
         foods=Array.from({length:CONFIG.foodCount},createFood);
         buffItems=Array.from({length:CONFIG.buffCount},createBuffItem);
     }
+    
     particles=[];activeBuffs=[];mouseHeld=false;chargeStart=0;lastWebTime=0;megaCharge=0;window.reviveUsed=false;window.challengeCompleted=false;
-    if(window.activeGameMode==='challenge') window.challengeStats={surviveTime:0,webHits:0,rank:99,kills:0,sizeWithoutSpeed:0,startTime:Date.now()};
+    
+    // Mode-specific setup
+    if(window.activeGameMode==='challenge'){
+        window.challengeStats={surviveTime:0,webHits:0,rank:99,kills:0,sizeWithoutSpeed:0,startTime:Date.now()};
+        showChallengeHUD();
+    }
+    if(window.activeGameMode==='beast'){
+        showBeastHUD();
+        // Beast boss'u başlat
+        if(beastBoss) bots.push(beastBoss);
+    }
+    if(window.activeGameMode==='random' && randomModeActiveBuff){
+        // Random mode: Rastgele buff ile başla
+        setTimeout(()=>addBuff(randomModeActiveBuff), 500);
+        showNotification('🎲 Rastgele Buff: ' + BUFFS[randomModeActiveBuff].name, BUFFS[randomModeActiveBuff].color);
+    }
+    
     otherPlayers={};serverWebs=[];
     camera={x:player.x-canvas.width/2,y:player.y-canvas.height/2};
     if(animFrame)cancelAnimationFrame(animFrame);
@@ -1540,8 +1623,8 @@ function showStreakMessage(msg){
 
 function checkChallengeCompletion(){
     if(window.activeGameMode !== 'challenge') return;
-    if(window.selectedChallenge === undefined || window.selectedChallenge === null) return;
-    const ch = CHALLENGES[window.selectedChallenge];
+    if(window.activeChallenge === undefined || window.activeChallenge === null || window.activeChallenge < 0) return;
+    const ch = CHALLENGES[window.activeChallenge];
     if(!ch || window.challengeCompleted) return;
     const stats = window.challengeStats;
     if(!stats || !ch.check(stats)) return;
@@ -1678,6 +1761,9 @@ function buildBestScoreBoard() {
 
 function update(){
     if(!player||!player.alive)return;
+    if(player.size > 200) player.size = 200; // hard cap
+    // Buff sayısını kontrol et
+    if(!socket||!socket.connected){ while(buffItems.filter(b=>!b.eaten).length < CONFIG.buffCount){ buffItems.push(createBuffItem()); } }
     // Challenge istatistik toplama
     if(window.activeGameMode==='challenge' && window.challengeStats){
         window.challengeStats.surviveTime=(Date.now()-window.challengeStats.startTime)/1000;
@@ -1700,12 +1786,11 @@ function update(){
     camera.y=lerp(camera.y,player.y-canvas.height/2,0.08);
     activeBuffs=activeBuffs.filter(b=>b.endTime>Date.now());
     const cooldown=hasBuff('RAPID_FIRE')?CONFIG.webCooldown/2:CONFIG.webCooldown;
-    document.getElementById('webBar').style.width=(Math.min((Date.now()-lastWebTime)/cooldown,1)*100)+'%';
-    document.getElementById('megaBar').style.width=(megaCharge/MEGA_MAX*100)+'%';
-    const megaReadyEl=document.getElementById('megaReady');
-    if(megaReadyEl) megaReadyEl.style.display=megaCharge>=MEGA_MAX?'block':'none';
-    const megaHitEl=document.getElementById('megaHitCount');
-    if(megaHitEl){ const hits=Math.min(6,Math.floor(megaCharge/18)); megaHitEl.textContent=hits+' / 6 vuruş'; megaHitEl.style.color=megaCharge>=MEGA_MAX?'#ffaa00':'rgba(255,255,255,0.5)'; }
+    // Performans: Cache'li DOM erişimi
+    if(DOM.webBar) DOM.webBar.style.width=(Math.min((Date.now()-lastWebTime)/cooldown,1)*100)+'%';
+    if(DOM.megaBar) DOM.megaBar.style.width=(megaCharge/MEGA_MAX*100)+'%';
+    if(DOM.megaReady) DOM.megaReady.style.display=megaCharge>=MEGA_MAX?'block':'none';
+    if(DOM.megaHitCount){ const hits=Math.min(6,Math.floor(megaCharge/18)); DOM.megaHitCount.textContent=hits+' / 6 vuruş'; DOM.megaHitCount.style.color=megaCharge>=MEGA_MAX?'#ffaa00':'rgba(255,255,255,0.5)'; }
 
     foods.forEach((food,i)=>{
         if(dist(player,food)<player.size){player.size+=0.5;player.score+=5;foods[i]=createFood();spawnParticles(food.x,food.y,food.color,2);Audio.eatFood();checkEvolution(player)}
@@ -1715,14 +1800,21 @@ function update(){
     buffItems.forEach((buff,i)=>{
         if(!buff.eaten && dist(player,buff)<player.size+buff.size){
             buff.eaten=true;
-            // Server bağlı değilse lokal ekle, bağlıysa server buffGranted gönderir
-            if(!socket||!socket.connected) addBuff(buff.type);
-            player.score+=30;
-            spawnParticles(buff.x,buff.y,buff.color,6);
-            showBuffNotification(buff.type);
-            Audio.buffPickup();
-            emitBuffEaten(buff.id);
-            setTimeout(()=>{ if(buffItems[i]) buffItems[i]=createBuffItem(); }, 200);
+            if(buff.isMine){
+                // MAYIM! Küçült ve bildirim göster
+                player.size = Math.max(20, player.size * 0.7);
+                showMineNotification();
+                spawnParticles(buff.x,buff.y,'#ff3366',10);
+                Audio.playerDeath && Audio.webHit();
+            } else {
+                if(!socket||!socket.connected) addBuff(buff.type);
+                player.score+=30;
+                spawnParticles(buff.x,buff.y,buff.color,6);
+                showBuffNotification(buff.type);
+                Audio.buffPickup();
+                emitBuffEaten(buff.id);
+            }
+            setTimeout(()=>{ buffItems[i]=createBuffItem(); }, 300);
         }
         buff.pulse+=0.06;
     });
@@ -1750,28 +1842,66 @@ function update(){
         }
     }
 
+    // Bot buff alma
+    bots.forEach(bot=>{
+        if(!bot.alive) return;
+        buffItems.forEach((buff,i)=>{
+            if(!buff||buff.eaten) return;
+            if(dist(bot,buff)<bot.size+buff.size){
+                buff.eaten=true;
+                if(!buff.isMine && BUFFS[buff.type]){
+                    bot._buffEndTime = Date.now() + BUFFS[buff.type].duration;
+                    bot._buffType = buff.type;
+                    if(buff.type==='GIANT') bot.size=Math.min(bot.size+15, 100);
+                    if(buff.type==='SPEED') bot._speedBuff=true;
+                }
+                setTimeout(()=>{ buffItems[i]=createBuffItem(); }, 300);
+            }
+        });
+        if(bot._buffEndTime && Date.now()>bot._buffEndTime){ bot._buffType=null; bot._speedBuff=false; }
+    });
+
     bots.forEach(bot=>{
         if(!bot.alive)return;
         const d=dist(player,bot);
-        if(d<player.size&&bot.size<player.size*CONFIG.eatSizeRatio){player.size+=bot.size*0.3;player.score+=Math.floor(bot.size*10);if(window.activeGameMode==='challenge'&&window.challengeStats)window.challengeStats.kills++;spawnParticles(bot.x,bot.y,bot.color,10);Audio.eatEnemy();checkEvolution(player);onPlayerKill();bot.alive=false;setTimeout(()=>{Object.assign(bot,createBot(bots.indexOf(bot)))},5000)}
+        if(d<player.size&&bot.size<player.size*CONFIG.eatSizeRatio){player.size=Math.min(200, player.size+Math.min(bot.size*0.3, 15));player.score+=Math.floor(bot.size*10);if(window.activeGameMode==='challenge'&&window.challengeStats)window.challengeStats.kills++;spawnParticles(bot.x,bot.y,bot.color,10);Audio.eatEnemy();checkEvolution(player);onPlayerKill();bot.alive=false;setTimeout(()=>{Object.assign(bot,createBot(bots.indexOf(bot)))},5000)}
         if(d<bot.size&&player.size<bot.size*CONFIG.eatSizeRatio){spawnParticles(player.x,player.y,player.color,15);player.alive=false;Audio.playerDeath();setTimeout(endGame,1000)}
     });
 
     webs.forEach(w=>{if(!w.trail)w.trail=[]});
     webs=webs.filter(web=>{
-        web.trail.push({x:web.x,y:web.y});if(web.trail.length>12)web.trail.shift();
+        // Performans: Trail limiti - max 10 nokta
+        web.trail.push({x:web.x,y:web.y});
+        if(web.trail.length>10)web.trail.shift();
+        
         web.x+=web.vx;web.y+=web.vy;web.life-=0.012;
         if(web.x<0||web.x>CONFIG.worldSize||web.y<0||web.y>CONFIG.worldSize||web.life<=0)return false;
-        const targets=[player,...bots].filter(t=>t!==web.owner&&t.alive);
-        for(const t of targets){if(dist(web,t)<t.size+web.size&&!(t===player&&abilityActive)){t.size=Math.max(15,t.size*(1-web.damage));spawnParticles(web.x,web.y,web.color,web.charged?14:6);if(web.owner===player){player.score+=20;Audio.webHit();megaCharge=Math.min(MEGA_MAX,megaCharge+18);window.megaCharge=megaCharge;if(window.activeGameMode==='challenge'&&window.challengeStats)window.challengeStats.webHits++;}return false}}
+        
+        // Hedefler: botlar + diğer oyuncular (multiplayer)
+        const targets=[...bots, ...Object.values(otherPlayers)].filter(t=>t!==web.owner&&t.alive);
+        for(const t of targets){
+            if(dist(web,t)<t.size+web.size&&!(t===player&&abilityActive)){
+                t.size=Math.max(15,t.size*(1-web.damage));
+                spawnParticles(web.x,web.y,web.color,web.charged?14:6);
+                if(web.owner===player){
+                    player.score+=20;
+                    Audio.webHit();
+                    megaCharge=Math.min(MEGA_MAX,megaCharge+18);
+                    window.megaCharge=megaCharge;
+                    if(window.activeGameMode==='challenge'&&window.challengeStats)window.challengeStats.webHits++;
+                }
+                return false;
+            }
+        }
         return true;
     });
 
-    particles=particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.life-=0.03;p.vx*=0.95;p.vy*=0.95;return p.life>0});
+    // Performans: Particle güncelleme - tutarlı değerler
+    particles=particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.life-=0.04;p.vx*=0.92;p.vy*=0.92;return p.life>0});
     bots.forEach(bot=>{if(!bot.alive)return;foods.forEach((food,i)=>{if(dist(bot,food)<bot.size){bot.size+=0.3;bot.score+=5;foods[i]=createFood()}})});
 
     const pEvo=getEvolution(player.size);updateTraps();updateAbilityHud();
-    document.getElementById('sizeDisplay').textContent=`${pEvo.name} • Boyut: ${Math.floor(player.size)}`;
+    if(DOM.sizeDisplay) DOM.sizeDisplay.textContent=`${pEvo.name} • Boyut: ${Math.floor(player.size)}`;
     updateLeaderboard();updateBuffHud();
 }
 
@@ -1813,6 +1943,37 @@ function updateBot(bot){
     });
 }
 
+// Genel bildirim fonksiyonu
+function showNotification(text, color = '#9600ff'){
+    const old=document.getElementById('generalNotif'); if(old) old.remove();
+    const n=document.createElement('div');
+    n.id='generalNotif';
+    n.style.cssText=`position:fixed;top:35%;left:50%;transform:translateX(-50%);
+        background:${color}dd;color:#fff;padding:14px 32px;border-radius:14px;
+        font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:3px;
+        z-index:9999;pointer-events:none;white-space:nowrap;text-align:center;
+        box-shadow:0 0 20px ${color}88;`;
+    n.textContent=text;
+    document.body.appendChild(n);
+    setTimeout(()=>{n.style.transition='opacity 0.5s';n.style.opacity='0';},1500);
+    setTimeout(()=>n.remove(),2100);
+}
+
+
+function showMineNotification(){
+    const old=document.getElementById('buffNotif'); if(old) old.remove();
+    const n=document.createElement('div');
+    n.id='buffNotif';
+    n.style.cssText=`position:fixed;top:40%;left:50%;transform:translateX(-50%);
+        background:rgba(255,51,102,0.95);color:#fff;padding:12px 28px;border-radius:12px;
+        font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;
+        z-index:9999;pointer-events:none;white-space:nowrap;`;
+    n.textContent='💣 MAYINA BASTIN! -30% BOYUT';
+    document.body.appendChild(n);
+    setTimeout(()=>{n.style.transition='opacity 0.5s';n.style.opacity='0';},800);
+    setTimeout(()=>n.remove(),1400);
+}
+
 function showBuffNotification(type){
     const buff=BUFFS[type];
     // Eski bildirimi varsa kaldır
@@ -1833,9 +1994,22 @@ function updateBuffHud(){
     el.innerHTML=activeBuffs.map(b=>{const buff=BUFFS[b.type];const r=Math.ceil((b.endTime-Date.now())/1000);return`<div style="background:${buff.color}99;border:2px solid ${buff.color};border-radius:10px;padding:8px 14px;color:#fff;font-family:Rajdhani,sans-serif;font-weight:700;font-size:14px;text-align:center;">${buff.icon} ${buff.name}<br><span style="font-size:11px">${r}s</span></div>`}).join('');
 }
 
+// Performans: Leaderboard güncelleme throttle
+let lastLbUpdate = 0;
+const LB_UPDATE_INTERVAL = 200; // 200ms'de bir güncelle
+
 function updateLeaderboard(){
-    const all=[player,...bots].filter(p=>p.alive);all.sort((a,b)=>b.score-a.score);
-    document.getElementById('lbList').innerHTML=all.slice(0,6).map((p,i)=>`<div class="lb-entry${p===player?' me':''}">${i+1}. ${p.name}<span>${p.score}</span></div>`).join('');
+    const now = Date.now();
+    if(now - lastLbUpdate < LB_UPDATE_INTERVAL) return;
+    lastLbUpdate = now;
+    
+    // Tüm oyuncuları dahil et (player + bots + multiplayer)
+    const all=[player,...bots,...Object.values(otherPlayers)].filter(p=>p&&p.alive);
+    all.sort((a,b)=>b.score-a.score);
+    
+    if(DOM.lbList){
+        DOM.lbList.innerHTML=all.slice(0,6).map((p,i)=>`<div class="lb-entry${p===player?' me':''}">${i+1}. ${p.name}<span>${p.score}</span></div>`).join('');
+    }
 }
 
 function draw(){
@@ -1855,23 +2029,50 @@ function draw(){
     foods.forEach(food=>{if(food.x<vx1||food.x>vx2||food.y<vy1||food.y>vy2)return;const s=food.size+Math.sin(food.pulse)*2;ctx.beginPath();ctx.arc(food.x,food.y,s,0,Math.PI*2);ctx.fillStyle=food.color;ctx.shadowColor=food.color;ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0});
 
     buffItems.forEach(buff=>{
+        if(!buff) return;
+        const drawType = buff.displayType || buff.type;
+        if(!BUFFS[drawType]) return;
         const s=buff.size+Math.sin(buff.pulse)*3;
-        ctx.beginPath();ctx.arc(buff.x,buff.y,s+8,0,Math.PI*2);ctx.fillStyle=BUFFS[buff.type].color+'33';ctx.fill();
-        ctx.beginPath();ctx.arc(buff.x,buff.y,s,0,Math.PI*2);ctx.fillStyle=BUFFS[buff.type].color+'cc';ctx.shadowColor=BUFFS[buff.type].color;ctx.shadowBlur=12;ctx.fill();ctx.shadowBlur=0;
-        ctx.font=`${s*1.2}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(BUFFS[buff.type].icon,buff.x,buff.y);
+        ctx.beginPath();ctx.arc(buff.x,buff.y,s+8,0,Math.PI*2);ctx.fillStyle=BUFFS[drawType].color+'33';ctx.fill();
+        ctx.beginPath();ctx.arc(buff.x,buff.y,s,0,Math.PI*2);ctx.fillStyle=BUFFS[drawType].color+'cc';ctx.shadowColor=BUFFS[drawType].color;ctx.shadowBlur=12;ctx.fill();ctx.shadowBlur=0;
+        ctx.font=`${s*1.2}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(BUFFS[drawType].icon,buff.x,buff.y);
     });
 
-    particles=particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.life-=0.06;p.vx*=0.88;p.vy*=0.88;return p.life>0;});
+    // Performans: Particles sadece burada çizilir, güncelleme update()'te yapılıyor
     particles.forEach(p=>{if(p.x<vx1||p.x>vx2||p.y<vy1||p.y>vy2)return;ctx.globalAlpha=p.life;ctx.beginPath();ctx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2);ctx.fillStyle=p.color;ctx.fill();});
     ctx.globalAlpha=1;
 
+    // Lokal webs
     webs.forEach(web=>{
         if(web.trail && web.trail.length>1){ctx.beginPath();ctx.moveTo(web.trail[0].x,web.trail[0].y);web.trail.forEach(p=>ctx.lineTo(p.x,p.y));ctx.strokeStyle=web.color+'66';ctx.lineWidth=2;ctx.stroke()}
         ctx.beginPath();ctx.arc(web.x,web.y,web.size,0,Math.PI*2);ctx.fillStyle=web.color;ctx.shadowColor=web.color;ctx.shadowBlur=10;ctx.fill();ctx.shadowBlur=0;
     });
+    
+    // Server webs (multiplayer'dan gelen)
+    if(typeof serverWebs !== 'undefined' && serverWebs.length > 0){
+        serverWebs.forEach(web=>{
+            if(web.x<vx1||web.x>vx2||web.y<vy1||web.y>vy2)return; // viewport culling
+            ctx.beginPath();ctx.arc(web.x,web.y,web.size||10,0,Math.PI*2);
+            ctx.fillStyle=web.color||'#9600ff';ctx.shadowColor=web.color||'#9600ff';ctx.shadowBlur=10;ctx.fill();ctx.shadowBlur=0;
+        });
+    }
 
     drawTraps();
     bots.forEach(bot=>{if(bot.alive)drawEntity(bot)});
+    
+    // Beast mode boss çizimi
+    if(window.activeGameMode === 'beast' && window.beastBossTarget && window.beastBossTarget.alive){
+        drawEntity(window.beastBossTarget);
+        // Boss health bar
+        const boss = window.beastBossTarget;
+        const barWidth = 200;
+        const healthPercent = boss.size / BEAST_CONFIG.bossSize;
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(boss.x - barWidth/2, boss.y - boss.size - 30, barWidth, 12);
+        ctx.fillStyle = '#ff3366';
+        ctx.fillRect(boss.x - barWidth/2 + 2, boss.y - boss.size - 28, (barWidth-4) * healthPercent, 8);
+    }
+    
     Object.values(otherPlayers).forEach(p=>{if(p&&p.alive&&p.size>0)drawEntity(p)});
     if(player&&player.alive){
         if(player.invisible)ctx.globalAlpha=0.25;
@@ -1932,6 +2133,18 @@ function drawEntity(e){
     // Web deseni
     for(let i=0;i<legs;i++){const a=(i/legs)*Math.PI*2;ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x+Math.cos(a)*e.size,e.y+Math.sin(a)*e.size);ctx.strokeStyle=e.color+'55';ctx.lineWidth=1;ctx.stroke()}
     for(let ring=0.35;ring<=1;ring+=0.35){ctx.beginPath();ctx.arc(e.x,e.y,e.size*ring,0,Math.PI*2);ctx.strokeStyle=e.color+'44';ctx.lineWidth=0.8;ctx.stroke()}
+
+    // Evrim görseli (yüklenmiş ise)
+    const evoImg = evoImages[evo.stage];
+    if(evoImg && evoImg.complete){
+        const r = e.size * 0.85;
+        ctx.save();
+        ctx.beginPath();ctx.arc(e.x,e.y,r,0,Math.PI*2);ctx.clip();
+        ctx.globalAlpha = 0.55;
+        ctx.drawImage(evoImg, e.x-r, e.y-r, r*2, r*2);
+        ctx.globalAlpha = 1;
+        ctx.restore();
+    }
 
     // Taç (evrim 3)
     if(evo.crown){
