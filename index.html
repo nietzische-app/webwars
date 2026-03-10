@@ -875,22 +875,19 @@ function startGame() {
           <div style="flex:1;height:1px;background:rgba(255,255,255,0.1)"></div>
         </div>
         <input type="text" id="playerName" placeholder="Misafir olarak devam et..." maxlength="15" style="width:100%;box-sizing:border-box;">
-        
-<!-- Skin Seçici -->
-<div id="skinPicker" style="margin-top:10px;width:100%;">
-  <div style="color:rgba(255,255,255,0.5);font-size:11px;letter-spacing:1px;margin-bottom:6px;text-align:center;font-family:'Rajdhani',sans-serif;">🎨 RENK SEÇ</div>
-  <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-    <div class="skinBtn" data-color="#00e5a0" style="background:#00e5a0;" onclick="selectSkin('#00e5a0')"></div>
-    <div class="skinBtn" data-color="#9600ff" style="background:#9600ff;" onclick="selectSkin('#9600ff')"></div>
-    <div class="skinBtn" data-color="#ff3366" style="background:#ff3366;" onclick="selectSkin('#ff3366')"></div>
-    <div class="skinBtn" data-color="#ffaa00" style="background:#ffaa00;" onclick="selectSkin('#ffaa00')"></div>
-    <div class="skinBtn" data-color="#00aaff" style="background:#00aaff;" onclick="selectSkin('#00aaff')"></div>
-    <div class="skinBtn" data-color="#ff6600" style="background:#ff6600;" onclick="selectSkin('#ff6600')"></div>
-    <div class="skinBtn" data-color="#ffd700" style="background:#ffd700;" onclick="selectSkin('#ffd700')"></div>
-    <div class="skinBtn" data-color="#ff00ff" style="background:#ff00ff;" onclick="selectSkin('#ff00ff')"></div>
-  </div>
-</div>
-
+                <div id="skinPicker" style="margin-top:8px;width:100%;">
+          <div style="color:rgba(255,255,255,0.5);font-size:11px;letter-spacing:1px;margin-bottom:6px;text-align:center;font-family:'Rajdhani',sans-serif;">🎨 RENK SEÇ</div>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+            <div class="skinBtn" data-color="#00e5a0" style="background:#00e5a0;" onclick="selectSkin('#00e5a0')"></div>
+            <div class="skinBtn" data-color="#9600ff" style="background:#9600ff;" onclick="selectSkin('#9600ff')"></div>
+            <div class="skinBtn" data-color="#ff3366" style="background:#ff3366;" onclick="selectSkin('#ff3366')"></div>
+            <div class="skinBtn" data-color="#ffaa00" style="background:#ffaa00;" onclick="selectSkin('#ffaa00')"></div>
+            <div class="skinBtn" data-color="#00aaff" style="background:#00aaff;" onclick="selectSkin('#00aaff')"></div>
+            <div class="skinBtn" data-color="#ff6600" style="background:#ff6600;" onclick="selectSkin('#ff6600')"></div>
+            <div class="skinBtn" data-color="#ffd700" style="background:#ffd700;" onclick="selectSkin('#ffd700')"></div>
+            <div class="skinBtn" data-color="#ff00ff" style="background:#ff00ff;" onclick="selectSkin('#ff00ff')"></div>
+          </div>
+        </div>
         <button id="playBtn" onclick="startGame()" data-i18n="play" style="width:100%;">OYNA</button>
       </div>
 
@@ -1406,14 +1403,14 @@ function resumeGame(){
 
 // ── Tutorial ──
 const TUTORIAL_STEPS = [
-    '👋 Web Wars'a hoş geldin! Dünyaya hakim olmaya çalış.',
-    '⌨️ WASD ile hareket et — veya sol joystick (mobil)',
-    '🖱️ Sol tıkla ağ at — düşmanlara isabet ettirince küçülürler',
-    '🍽️ Küçük düşmanları yut → büyü! Büyük düşmanlardan kaç.',
-    '⚡ Map'teki renkli topları yakala → güçlenirsin',
-    '💥 MEGA BAR — 6 isabet sonra SPACE ile mega şot at!',
-    '🕷️ E tuşu → özel yeteneğini kullan (her evrimde farklı)',
-    '🏆 Hazırsın! İyi oyunlar 🎮',
+    "👋 Web Wars'a hoş geldin! Dünyaya hakim olmaya çalış.",
+    "⌨️ WASD ile hareket et — veya sol joystick (mobil)",
+    "🖱️ Sol tıkla ağ at — düşmanlara isabet ettirince küçülürler",
+    "🍽️ Küçük düşmanları yut → büyü! Büyük düşmanlardan kaç.",
+    "⚡ Map'teki renkli topları yakala → güçlenirsin",
+    "💥 MEGA BAR — 6 isabet sonra SPACE ile mega şot at!",
+    "🕷️ E tuşu → özel yeteneğini kullan (her evrimde farklı)",
+    "🏆 Hazırsın! İyi oyunlar 🎮",
 ];
 let tutStep = 0;
 
