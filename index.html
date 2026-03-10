@@ -1470,14 +1470,29 @@ function startGame_original(){
 
 
 function pauseGame(){
-    if(!player||!player.alive)return;
-    gamePaused=true;
-    if(animFrame){cancelAnimationFrame(animFrame);animFrame=null;}
-    document.getElementById('pauseScreen').style.display='flex';
+    // Oyun aktif değilse pause yapma
+    if(!player || !player.alive) return;
+    
+    // Zaten menüdeyse pause yapma
+    const menu = document.getElementById('menu');
+    if(menu && menu.style.display !== 'none') return;
+    
+    gamePaused = true;
+    if(animFrame){
+        cancelAnimationFrame(animFrame);
+        animFrame = null;
+    }
+    const pauseScreen = document.getElementById('pauseScreen');
+    if(pauseScreen) pauseScreen.style.display = 'flex';
 }
+
 function resumeGame(){
-    gamePaused=false;
-    document.getElementById('pauseScreen').style.display='none';
+    // Oyun aktif değilse resume yapma
+    if(!player || !player.alive) return;
+    
+    gamePaused = false;
+    const pauseScreen = document.getElementById('pauseScreen');
+    if(pauseScreen) pauseScreen.style.display = 'none';
     gameLoop();
 }
 
@@ -1664,8 +1679,54 @@ function checkChallengeCompletion(){
     setTimeout(()=>el.remove(), 3000);
 }
 
-function restartGame(){document.getElementById('gameOver').style.display='none';startGame()}
-function showMenu(){if(animFrame)cancelAnimationFrame(animFrame);document.getElementById('gameOver').style.display='none';document.getElementById('gameContainer').style.display='none';document.getElementById('menu').style.display='flex'}
+function restartGame(){
+    const gameOver = document.getElementById('gameOver');
+    if(gameOver) gameOver.style.display='none';
+    startGame();
+}
+
+function showMenu(){
+    // Oyunu tamamen durdur
+    if(animFrame){
+        cancelAnimationFrame(animFrame);
+        animFrame = null;
+    }
+    
+    // Oyun state'ini sıfırla
+    gamePaused = false;
+    if(player) player.alive = false;
+    
+    // Socket'e bildir
+    if(socket) socket.emit('died');
+    
+    // HUD'ları temizle
+    cleanupModeHUDs();
+    const buffHud = document.getElementById('buffHud');
+    if(buffHud) buffHud.remove();
+    const streakMsg = document.getElementById('streakMsg');
+    if(streakMsg) streakMsg.remove();
+    const buffNotif = document.getElementById('buffNotif');
+    if(buffNotif) buffNotif.remove();
+    const generalNotif = document.getElementById('generalNotif');
+    if(generalNotif) generalNotif.remove();
+    
+    // Ekranları gizle/göster
+    const gameOver = document.getElementById('gameOver');
+    const gameContainer = document.getElementById('gameContainer');
+    const menu = document.getElementById('menu');
+    const pauseScreen = document.getElementById('pauseScreen');
+    
+    if(gameOver) gameOver.style.display='none';
+    if(gameContainer) gameContainer.style.display='none';
+    if(pauseScreen) pauseScreen.style.display='none';
+    if(menu) menu.style.display='flex';
+    
+    // Oyun değişkenlerini sıfırla
+    window.activeGameMode = null;
+    window.activeChallenge = -1;
+    beastBoss = null;
+    window.beastBossTarget = null;
+}
 
 function endGame(){
     if(socket) socket.emit('died');
@@ -2281,9 +2342,24 @@ function fireMegaShot(){
 }
 
 window.addEventListener('keydown',e=>{
+    // Oyun aktif değilse (menüde veya oyun bitti) tuşları engelle
+    const menu = document.getElementById('menu');
+    const gameOver = document.getElementById('gameOver');
+    const isInGame = player && player.alive && menu && menu.style.display === 'none' && (!gameOver || gameOver.style.display === 'none');
+    
+    // ESC sadece oyundayken çalışsın
+    if(e.key==='Escape'){
+        if(!isInGame) return; // Menüdeyken ESC çalışmasın
+        if(gamePaused) resumeGame();
+        else pauseGame();
+        return;
+    }
+    
+    // Diğer oyun tuşları sadece oyundayken çalışsın
+    if(!isInGame) return;
+    
     if(e.key==='e'||e.key==='E'){useAbility();return;}
     if(e.key===' '){e.preventDefault();fireMegaShot();return;}
-    if(e.key==='Escape'){if(gamePaused)resumeGame();else pauseGame();return;}
     if(e.key==='w'||e.key==='W'||e.key==='ArrowUp')keys.w=true;
     if(e.key==='s'||e.key==='S'||e.key==='ArrowDown')keys.s=true;
     if(e.key==='a'||e.key==='A'||e.key==='ArrowLeft')keys.a=true;
@@ -2296,7 +2372,12 @@ window.addEventListener('keyup',e=>{
     if(e.key==='d'||e.key==='D'||e.key==='ArrowRight')keys.d=false;
 });
 window.addEventListener('resize',()=>{if(canvas){canvas.width=window.innerWidth;canvas.height=window.innerHeight}});
-document.getElementById('playerName').addEventListener('keydown',e=>{if(e.key==='Enter')startGame()});
+
+// playerName input için Enter tuşu - sadece bu input için
+const playerNameInput = document.getElementById('playerName');
+if(playerNameInput) {
+    playerNameInput.addEventListener('keydown',e=>{if(e.key==='Enter')startGame()});
+}
 
 function toggleFullscreen(){
     const btn = document.getElementById('fullscreenBtn');
