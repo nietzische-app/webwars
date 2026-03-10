@@ -48,6 +48,9 @@ body{background:#0a0a0f;font-family:'Rajdhani',sans-serif;overflow:hidden;width:
 .subtitle{font-size:18px;color:rgba(255,255,255,.6);letter-spacing:2px;text-transform:uppercase}
 #playerName{background:rgba(255,255,255,.05);border:2px solid rgba(150,0,255,.5);border-radius:8px;padding:14px 24px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:600;text-align:center;width:280px;outline:none;transition:border-color .3s}
 #playerName:focus{border-color:#9600ff}
+.skinBtn{width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:transform 0.2s,border-color 0.2s;}
+.skinBtn:hover{transform:scale(1.2);}
+.skinBtn.active{border-color:#fff;transform:scale(1.15);}
 #playerName::placeholder{color:rgba(255,255,255,.3)}
 #playBtn{background:linear-gradient(135deg,#9600ff,#00e5a0);border:none;border-radius:8px;padding:16px 60px;color:#fff;font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:4px;cursor:pointer;transition:transform .2s,box-shadow .2s;box-shadow:0 4px 30px rgba(150,0,255,.4)}
 #playBtn:hover{transform:scale(1.05);box-shadow:0 8px 40px rgba(150,0,255,.6)}
@@ -85,6 +88,7 @@ body{background:#0a0a0f;font-family:'Rajdhani',sans-serif;overflow:hidden;width:
 .go-content button:last-child{background:rgba(255,255,255,.1)}
 #muteBtn,#fullscreenBtn{background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:10px 14px;color:#fff;font-size:18px;cursor:pointer;pointer-events:all;min-width:44px;min-height:44px;touch-action:manipulation;}
 #gameTopRight{position:fixed;top:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:9999;pointer-events:all;}
+@keyframes streakAnim{0%{opacity:0;transform:translateX(-50%) scale(0.5)}20%{opacity:1;transform:translateX(-50%) scale(1.1)}80%{opacity:1;transform:translateX(-50%) scale(1)}100%{opacity:0;transform:translateX(-50%) scale(0.9)}}
 @keyframes megaPulse{0%{opacity:0.6;transform:scale(0.97)}100%{opacity:1;transform:scale(1.03)}}
 @keyframes fadeOut{0%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-60%) scale(1.1)}}
 
@@ -582,7 +586,7 @@ const CHALLENGES = [
     { id:4, name:'Hız Canavarı', desc:'Hız buffsız 100 boyuta ulaş', check: s => s.sizeWithoutSpeed >= 100 },
 ];
 
-let challengeStats = { surviveTime:0, webHits:0, rank:99, kills:0, sizeWithoutSpeed:0 };
+let challengeStats = { surviveTime:0, webHits:0, rank:99, kills:0, sizeWithoutSpeed:0, startTime:Date.now() };
 
 function selectMode(mode) {
     currentMode = mode;
@@ -871,6 +875,22 @@ function startGame() {
           <div style="flex:1;height:1px;background:rgba(255,255,255,0.1)"></div>
         </div>
         <input type="text" id="playerName" placeholder="Misafir olarak devam et..." maxlength="15" style="width:100%;box-sizing:border-box;">
+        
+<!-- Skin Seçici -->
+<div id="skinPicker" style="margin-top:10px;width:100%;">
+  <div style="color:rgba(255,255,255,0.5);font-size:11px;letter-spacing:1px;margin-bottom:6px;text-align:center;font-family:'Rajdhani',sans-serif;">🎨 RENK SEÇ</div>
+  <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+    <div class="skinBtn" data-color="#00e5a0" style="background:#00e5a0;" onclick="selectSkin('#00e5a0')"></div>
+    <div class="skinBtn" data-color="#9600ff" style="background:#9600ff;" onclick="selectSkin('#9600ff')"></div>
+    <div class="skinBtn" data-color="#ff3366" style="background:#ff3366;" onclick="selectSkin('#ff3366')"></div>
+    <div class="skinBtn" data-color="#ffaa00" style="background:#ffaa00;" onclick="selectSkin('#ffaa00')"></div>
+    <div class="skinBtn" data-color="#00aaff" style="background:#00aaff;" onclick="selectSkin('#00aaff')"></div>
+    <div class="skinBtn" data-color="#ff6600" style="background:#ff6600;" onclick="selectSkin('#ff6600')"></div>
+    <div class="skinBtn" data-color="#ffd700" style="background:#ffd700;" onclick="selectSkin('#ffd700')"></div>
+    <div class="skinBtn" data-color="#ff00ff" style="background:#ff00ff;" onclick="selectSkin('#ff00ff')"></div>
+  </div>
+</div>
+
         <button id="playBtn" onclick="startGame()" data-i18n="play" style="width:100%;">OYNA</button>
       </div>
 
@@ -1089,7 +1109,23 @@ const Audio = (() => {
     function gameStart(){[261,329,392,523].forEach((freq,i)=>playTone({frequency:freq,type:'sine',duration:0.2,volume:0.3,delay:i*120}))}
     function gameOver(){[523,392,329,261].forEach((freq,i)=>playTone({frequency:freq,type:'sine',duration:0.25,volume:0.35,delay:i*150}))}
     function toggle(){enabled=!enabled;if(masterGain)masterGain.gain.value=enabled?0.4:0;return enabled}
-    return{init,webShoot,webHit,eatFood,buffPickup,eatEnemy,playerDeath,tripleShot,gameStart,gameOver,toggle,resume}
+    function killStreakSound(){ 
+        playTone({frequency:600,type:'sine',duration:0.1,volume:0.3,delay:0});
+        playTone({frequency:800,type:'sine',duration:0.1,volume:0.3,delay:120});
+        playTone({frequency:1000,type:'sine',duration:0.15,volume:0.4,delay:240});
+    }
+    function levelUpSound(){
+        [400,500,600,800].forEach((f,i)=>playTone({frequency:f,type:'sine',duration:0.2,volume:0.35,delay:i*100}));
+    }
+    function dailySound(){
+        [523,659,784,1047].forEach((f,i)=>playTone({frequency:f,type:'sine',duration:0.25,volume:0.4,delay:i*120}));
+    }
+    function megaSound(){
+        playTone({frequency:200,type:'sawtooth',duration:0.05,volume:0.5,delay:0});
+        playTone({frequency:400,type:'sine',duration:0.3,volume:0.6,delay:60});
+        playTone({frequency:800,type:'sine',duration:0.2,volume:0.5,delay:200});
+    }
+    return{init,webShoot,webHit,eatFood,buffPickup,eatEnemy,playerDeath,tripleShot,gameStart,gameOver,toggle,resume,killStreakSound,levelUpSound,dailySound,megaSound}
 })();
 window.addEventListener('load',()=>Audio.init());
 window.addEventListener('click',()=>Audio.resume(),{once:true});
@@ -1298,7 +1334,7 @@ function spawnParticles(x,y,color,count){
     for(let i=0;i<n;i++) particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color,size:Math.random()*4+2});
 }
 
-function createPlayer(name){return{x:CONFIG.worldSize/2,y:CONFIG.worldSize/2,size:30,color:'#00e5a0',name:name||'Sen',speed:4,isPlayer:true,alive:true,score:0}}
+function createPlayer(name){const c=typeof selectedColor!=='undefined'?selectedColor:'#00e5a0';return{x:CONFIG.worldSize/2,y:CONFIG.worldSize/2,size:30,color:c,name:name||'Sen',speed:4,isPlayer:true,alive:true,score:0}}
 
 function createBot(i){
     const names=['Zephyr','Vortex','Blaze','Nova','Toxin','Shade','Rune','Kira','Phantom','Echo','Storm','Frost','Ember','Vex','Nox'];
@@ -1336,13 +1372,15 @@ function startGame_original(){
         foods=Array.from({length:CONFIG.foodCount},createFood);
         buffItems=Array.from({length:CONFIG.buffCount},createBuffItem);
     }
-    particles=[];activeBuffs=[];mouseHeld=false;chargeStart=0;lastWebTime=0;megaCharge=0;window.reviveUsed=false;
+    particles=[];activeBuffs=[];mouseHeld=false;chargeStart=0;lastWebTime=0;megaCharge=0;window.reviveUsed=false;window.challengeCompleted=false;
+    if(window.activeGameMode==='challenge') window.challengeStats={surviveTime:0,webHits:0,rank:99,kills:0,sizeWithoutSpeed:0,startTime:Date.now()};
     otherPlayers={};serverWebs=[];
     camera={x:player.x-canvas.width/2,y:player.y-canvas.height/2};
     if(animFrame)cancelAnimationFrame(animFrame);
     // Join server
     emitJoin(name);
     Audio.gameStart();
+    startTutorial();
     gameLoop();
 }
 
@@ -1361,6 +1399,190 @@ function resumeGame(){
     document.getElementById('pauseScreen').style.display='none';
     gameLoop();
 }
+
+
+
+
+
+// ── Tutorial ──
+const TUTORIAL_STEPS = [
+    '👋 Web Wars'a hoş geldin! Dünyaya hakim olmaya çalış.',
+    '⌨️ WASD ile hareket et — veya sol joystick (mobil)',
+    '🖱️ Sol tıkla ağ at — düşmanlara isabet ettirince küçülürler',
+    '🍽️ Küçük düşmanları yut → büyü! Büyük düşmanlardan kaç.',
+    '⚡ Map'teki renkli topları yakala → güçlenirsin',
+    '💥 MEGA BAR — 6 isabet sonra SPACE ile mega şot at!',
+    '🕷️ E tuşu → özel yeteneğini kullan (her evrimde farklı)',
+    '🏆 Hazırsın! İyi oyunlar 🎮',
+];
+let tutStep = 0;
+
+function startTutorial(){
+    if(localStorage.getItem('ww_tutorial_done')) return;
+    tutStep = 0;
+    document.getElementById('tutorialOverlay').style.display='block';
+    document.getElementById('tutorialText').textContent = TUTORIAL_STEPS[0];
+}
+function nextTutorial(){
+    tutStep++;
+    if(tutStep >= TUTORIAL_STEPS.length){ endTutorial(); return; }
+    document.getElementById('tutorialText').textContent = TUTORIAL_STEPS[tutStep];
+    document.getElementById('tutorialNext').textContent = tutStep===TUTORIAL_STEPS.length-1 ? 'BAŞLA! 🎮' : 'TAMAM →';
+}
+function endTutorial(){
+    localStorage.setItem('ww_tutorial_done','1');
+    document.getElementById('tutorialOverlay').style.display='none';
+}
+
+// ── Günlük Görevler ──
+const DAILY_QUESTS = [
+    {id:'dq_score',   name:'Günlük Skorer', desc:'500 puan kazan',       icon:'🎯', check: s=>s.score>=500},
+    {id:'dq_kills',   name:'Avcı',           desc:'5 düşman yut',          icon:'⚔️', check: s=>s.kills>=5},
+    {id:'dq_survive', name:'Dayanıklı',      desc:'3 dakika hayatta kal',  icon:'⏱️', check: s=>s.surviveTime>=180},
+    {id:'dq_web',     name:'Nişancı',        desc:'15 ağ isabeti',         icon:'🕸️', check: s=>s.webHits>=15},
+];
+const TODAY = new Date().toDateString();
+
+function getDailyProgress(){
+    const saved = JSON.parse(localStorage.getItem('ww_daily_'+TODAY)||'{}');
+    return saved;
+}
+function saveDailyProgress(id){
+    const p = getDailyProgress();
+    p[id] = true;
+    localStorage.setItem('ww_daily_'+TODAY, JSON.stringify(p));
+}
+function showDailyPanel(){
+    const progress = getDailyProgress();
+    const list = document.getElementById('dailyList');
+    list.innerHTML = DAILY_QUESTS.map(q=>{
+        const done = !!progress[q.id];
+        return `<div style="display:flex;align-items:center;gap:12px;background:${done?'rgba(0,229,160,0.1)':'rgba(255,255,255,0.04)'};border:1px solid ${done?'rgba(0,229,160,0.3)':'rgba(255,255,255,0.1)'};border-radius:10px;padding:12px 16px;">
+            <span style="font-size:24px;">${q.icon}</span>
+            <div style="flex:1;">
+                <div style="font-family:'Rajdhani',sans-serif;font-weight:700;color:${done?'#00e5a0':'#fff'};font-size:15px;">${q.name}</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.4);">${q.desc}</div>
+            </div>
+            <span style="font-size:20px;">${done?'⭐':'🔒'}</span>
+        </div>`;
+    }).join('');
+    document.getElementById('dailyPanel').style.display='flex';
+}
+
+function checkDailyQuests(stats){
+    const progress = getDailyProgress();
+    DAILY_QUESTS.forEach(q=>{
+        if(!progress[q.id] && q.check(stats)){
+            saveDailyProgress(q.id);
+            showDailyComplete(q);
+        }
+    });
+}
+
+function showDailyComplete(q){
+    const el = document.createElement('div');
+    el.style.cssText = `position:fixed;top:20%;left:50%;transform:translateX(-50%);
+        background:rgba(255,215,0,0.95);color:#1a0a2e;padding:14px 32px;border-radius:14px;
+        font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:3px;
+        z-index:99999;pointer-events:none;text-align:center;white-space:nowrap;
+        box-shadow:0 0 30px rgba(255,215,0,0.5);`;
+    el.innerHTML = `${q.icon} GÜNLÜK GÖREV: ${q.name.toUpperCase()} ⭐`;
+    document.body.appendChild(el);
+    setTimeout(()=>{el.style.transition='opacity 0.5s';el.style.opacity='0';},2000);
+    setTimeout(()=>el.remove(),2600);
+    if(typeof Audio!=='undefined') Audio.dailySound();
+}
+
+// ── Skin Sistemi ──
+let selectedColor = localStorage.getItem('ww_skin') || '#00e5a0';
+function selectSkin(color){
+    selectedColor = color;
+    localStorage.setItem('ww_skin', color);
+    document.querySelectorAll('.skinBtn').forEach(b=>{
+        b.classList.toggle('active', b.dataset.color === color);
+    });
+}
+window.addEventListener('load', ()=>{
+    selectSkin(selectedColor); // aktif rengi işaretle
+});
+
+// ── Kill Streak ──
+let killStreak = 0;
+let killStreakTimer = null;
+const STREAK_MESSAGES = [
+    null, null,
+    {text:'DOUBLE KILL!', icon:'⚔️', color:'#ffaa00'},
+    {text:'TRIPLE KILL!', icon:'🔥', color:'#ff6600'},
+    {text:'QUAD KILL!',   icon:'💀', color:'#ff3366'},
+    {text:'PENTA KILL!',  icon:'👑', color:'#ffd700'},
+];
+
+function onPlayerKill(){
+    killStreak++;
+    clearTimeout(killStreakTimer);
+    killStreakTimer = setTimeout(()=>{ killStreak=0; }, 4000);
+    const msg = STREAK_MESSAGES[Math.min(killStreak, STREAK_MESSAGES.length-1)];
+    if(msg){ showStreakMessage(msg); if(typeof Audio!=='undefined') Audio.killStreakSound(); }
+}
+
+function showStreakMessage(msg){
+    const old = document.getElementById('streakMsg');
+    if(old) old.remove();
+    const el = document.createElement('div');
+    el.id = 'streakMsg';
+    el.style.cssText = `position:fixed;top:30%;left:50%;transform:translateX(-50%);
+        color:${msg.color};font-family:'Bebas Neue',sans-serif;font-size:42px;
+        letter-spacing:5px;z-index:9999;pointer-events:none;text-align:center;
+        text-shadow:0 0 20px ${msg.color};white-space:nowrap;
+        animation:streakAnim 1.5s forwards;`;
+    el.textContent = msg.icon + ' ' + msg.text + ' ' + msg.icon;
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(), 1500);
+}
+
+function checkChallengeCompletion(){
+    if(window.activeGameMode !== 'challenge') return;
+    if(window.selectedChallenge === undefined || window.selectedChallenge === null) return;
+    const ch = CHALLENGES[window.selectedChallenge];
+    if(!ch || window.challengeCompleted) return;
+    const stats = window.challengeStats;
+    if(!stats || !ch.check(stats)) return;
+
+    // Görev tamamlandı!
+    window.challengeCompleted = true;
+    localStorage.setItem('ww_ch_' + ch.id, 1);
+
+    // Büyük bildirim göster
+    const el = document.createElement('div');
+    el.style.cssText = `
+        position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+        background:linear-gradient(135deg,rgba(0,229,160,0.95),rgba(150,0,255,0.95));
+        color:#fff;padding:24px 48px;border-radius:20px;
+        font-family:'Bebas Neue',sans-serif;font-size:40px;letter-spacing:4px;
+        z-index:99999;pointer-events:none;text-align:center;
+        box-shadow:0 0 60px rgba(0,229,160,0.5);
+        animation:megaPulse 0.4s ease infinite alternate;
+    `;
+    el.innerHTML = `⭐ GÖREV TAMAMLANDI! ⭐<br>
+        <span style="font-size:20px;letter-spacing:2px;opacity:0.9;">${ch.name}</span>`;
+    document.body.appendChild(el);
+
+    // Konfeti parçacıkları
+    for(let i=0;i<30;i++){
+        setTimeout(()=>{
+            const colors=['#00e5a0','#9600ff','#ffd700','#ff3366','#00aaff'];
+            spawnParticles(
+                player.x + (Math.random()-0.5)*200,
+                player.y + (Math.random()-0.5)*200,
+                colors[Math.floor(Math.random()*colors.length)], 4
+            );
+        }, i*60);
+    }
+
+    setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity 0.5s'; }, 2500);
+    setTimeout(()=>el.remove(), 3000);
+}
+
 function restartGame(){document.getElementById('gameOver').style.display='none';startGame()}
 function showMenu(){if(animFrame)cancelAnimationFrame(animFrame);document.getElementById('gameOver').style.display='none';document.getElementById('gameContainer').style.display='none';document.getElementById('menu').style.display='flex'}
 
@@ -1467,7 +1689,10 @@ function update(){
         window.challengeStats.rank=allE.findIndex(e=>e===player)+1;
         // Size without speed buff
         if(!hasBuff('SPEED')) window.challengeStats.sizeWithoutSpeed=Math.max(window.challengeStats.sizeWithoutSpeed||0,player.size);
+        checkChallengeCompletion();
     }
+    // Günlük görev kontrolü (her oyunda)
+    if(window.challengeStats) checkDailyQuests({...window.challengeStats, score: player.score});
     const spd=4*(30/player.size)*(hasBuff('SPEED')?2:1);
     if(keys.w)player.y-=spd;if(keys.s)player.y+=spd;if(keys.a)player.x-=spd;if(keys.d)player.x+=spd;
     player.x=clamp(player.x,player.size,CONFIG.worldSize-player.size);
@@ -1530,7 +1755,7 @@ function update(){
     bots.forEach(bot=>{
         if(!bot.alive)return;
         const d=dist(player,bot);
-        if(d<player.size&&bot.size<player.size*CONFIG.eatSizeRatio){player.size+=bot.size*0.3;player.score+=Math.floor(bot.size*10);if(window.activeGameMode==='challenge'&&window.challengeStats)window.challengeStats.kills++;spawnParticles(bot.x,bot.y,bot.color,10);Audio.eatEnemy();checkEvolution(player);bot.alive=false;setTimeout(()=>{Object.assign(bot,createBot(bots.indexOf(bot)))},5000)}
+        if(d<player.size&&bot.size<player.size*CONFIG.eatSizeRatio){player.size+=bot.size*0.3;player.score+=Math.floor(bot.size*10);if(window.activeGameMode==='challenge'&&window.challengeStats)window.challengeStats.kills++;spawnParticles(bot.x,bot.y,bot.color,10);Audio.eatEnemy();checkEvolution(player);onPlayerKill();bot.alive=false;setTimeout(()=>{Object.assign(bot,createBot(bots.indexOf(bot)))},5000)}
         if(d<bot.size&&player.size<bot.size*CONFIG.eatSizeRatio){spawnParticles(player.x,player.y,player.color,15);player.alive=false;Audio.playerDeath();setTimeout(endGame,1000)}
     });
 
@@ -1826,6 +2051,7 @@ function mobileAbility(){
 
 function fireMegaShot(){
     if(!player||!player.alive||megaCharge<MEGA_MAX)return;
+    if(typeof Audio!=="undefined") Audio.megaSound();
     const target=getAutoAimTarget();
     const tx=target?target.x:player.x+200;
     const ty=target?target.y:player.y;
@@ -1932,6 +2158,28 @@ function toggleMute(){const en=Audio.toggle();document.getElementById('muteBtn')
 
         </div>
     </div>
+
+<!-- Günlük Görevler Paneli -->
+<div id="dailyPanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:5000;align-items:center;justify-content:center;backdrop-filter:blur(8px);">
+  <div style="background:rgba(20,10,40,0.98);border:1px solid rgba(150,0,255,0.4);border-radius:20px;padding:32px 40px;max-width:420px;width:90%;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:#ffd700;letter-spacing:4px;text-align:center;margin-bottom:20px;">📅 GÜNLÜK GÖREVLER</div>
+    <div id="dailyList" style="display:flex;flex-direction:column;gap:10px;"></div>
+    <button onclick="document.getElementById('dailyPanel').style.display='none'" style="margin-top:20px;width:100%;background:rgba(150,0,255,0.2);border:1px solid rgba(150,0,255,0.4);border-radius:8px;padding:12px;color:#fff;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;cursor:pointer;">KAPAT</button>
+  </div>
+</div>
+
+
+<!-- Tutorial -->
+<div id="tutorialOverlay" style="display:none;position:fixed;inset:0;z-index:4000;pointer-events:none;">
+  <div id="tutorialBox" style="position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(10,5,30,0.95);border:1px solid rgba(150,0,255,0.5);border-radius:14px;padding:14px 24px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:16px;text-align:center;pointer-events:all;max-width:320px;z-index:4001;">
+    <div id="tutorialText">Merhaba! 👋</div>
+    <div style="display:flex;gap:8px;margin-top:10px;justify-content:center;">
+      <button id="tutorialSkip" onclick="endTutorial()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:6px 16px;color:rgba(255,255,255,0.5);font-family:'Rajdhani',sans-serif;font-size:13px;cursor:pointer;pointer-events:all;">Atla</button>
+      <button id="tutorialNext" onclick="nextTutorial()" style="background:linear-gradient(135deg,#9600ff,#00e5a0);border:none;border-radius:6px;padding:6px 20px;color:#fff;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;cursor:pointer;pointer-events:all;">TAMAM →</button>
+    </div>
+  </div>
+</div>
+
 <!-- Rotate Screen -->
 <div id="rotateScreen" style="display:none;position:fixed;inset:0;background:#0a0a0f;z-index:9999;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:'Rajdhani',sans-serif;text-align:center;">
   <div style="font-size:64px;">📱</div>
