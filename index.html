@@ -2209,44 +2209,47 @@ function toggleMute(){const en=Audio.toggle();document.getElementById('muteBtn')
     document.getElementById('mobileControls').style.display = 'none';
     document.getElementById('rotateScreen').style.display = 'none';
 
-    // startGame override — önce yatay uyarısı göster
+    // startGame override — dikeyde uyarı göster, yataydaysa başlat
     const _origStart = window.startGame;
     window.startGame = function(){
         const portrait = window.innerHeight > window.innerWidth;
         if(portrait){
-            // Dikey modda → yatay çevir ekranı göster, oyunu beklet
+            document.getElementById('menu').style.display = 'none'; // menüyü gizle
             document.getElementById('rotateScreen').style.display = 'flex';
             window._pendingStart = true;
             return;
         }
-        // Zaten yatay → direkt başlat
         _origStart && _origStart();
         document.getElementById('mobileControls').style.display = 'block';
     };
 
-    // Yatay çevirince başlat
+    // Orientation değişince
     function onOrientationChange(){
         const portrait = window.innerHeight > window.innerWidth;
+        const gameContainer = document.getElementById('gameContainer');
+        const inGame = gameContainer && gameContainer.style.display !== 'none';
+
         if(!portrait && window._pendingStart){
+            // Yatay çevrildi, oyun başlatılmayı bekliyordu
             window._pendingStart = false;
             document.getElementById('rotateScreen').style.display = 'none';
-            const orig = window._origStartGame || window.startGame_original;
-            if(orig) orig();
+            _origStart && _origStart();
             document.getElementById('mobileControls').style.display = 'block';
+            return;
         }
-        // Oyun sırasında dikey dönerse uyar
-        const inGame = document.getElementById('gameContainer') &&
-                       document.getElementById('gameContainer').style.display !== 'none';
-        if(portrait && inGame){
+
+        // Oyun oynanırken yönelim değişimi
+        if(inGame){
+            document.getElementById('rotateScreen').style.display = portrait ? 'flex' : 'none';
+        } else if(portrait && window._pendingStart){
+            // Hâlâ dikey, menü yerine uyarı göster
             document.getElementById('rotateScreen').style.display = 'flex';
-        } else if(!portrait && inGame){
-            document.getElementById('rotateScreen').style.display = 'none';
         }
     }
     window.addEventListener('resize', onOrientationChange);
     window.addEventListener('orientationchange', onOrientationChange);
 
-    // Screen API lock (destekliyorsa)
+    // Screen API lock
     if(screen.orientation && screen.orientation.lock){
         screen.orientation.lock('landscape').catch(()=>{});
     }
