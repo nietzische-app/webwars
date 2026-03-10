@@ -14,7 +14,7 @@
   <meta property="og:url" content="https://webwars.online">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://webwars.online/og-image.jpg">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>WEB WARS 🕸️</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap');
@@ -695,6 +695,38 @@ function startGame() {
     <div style="color:rgba(255,255,255,0.5);font-family:'Rajdhani',sans-serif;font-size:14px;letter-spacing:2px;">YÜKLENİYOR...</div>
   </div>
 </div>
+
+<script>
+// Loading screen
+(function(){
+    const bar = document.getElementById('loadingBar');
+    const screen = document.getElementById('loadingScreen');
+    if(!bar || !screen) return;
+    let pct = 0;
+
+    function hideLoading(){
+        screen.style.transition = 'opacity 0.4s';
+        screen.style.opacity = '0';
+        setTimeout(() => { screen.style.display = 'none'; }, 400);
+    }
+
+    const interval = setInterval(() => {
+        pct += Math.random() * 20 + 8;
+        if(pct >= 100){
+            pct = 100;
+            bar.style.width = '100%';
+            clearInterval(interval);
+            setTimeout(hideLoading, 200);
+        }
+        bar.style.width = pct + '%';
+    }, 80);
+
+    // Güvenlik: max 3 saniyede zorla kapat
+    setTimeout(() => { clearInterval(interval); hideLoading(); }, 3000);
+    // Sayfa yüklenince kapat
+    window.addEventListener('load', () => { clearInterval(interval); setTimeout(hideLoading, 300); });
+})();
+</script>
 
 <div id="menu">
   <div class="menu-bg"></div>
