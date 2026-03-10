@@ -1492,13 +1492,14 @@ function update(){
     buffItems.forEach((buff,i)=>{
         if(!buff.eaten && dist(player,buff)<player.size+buff.size){
             buff.eaten=true;
-            addBuff(buff.type);
+            // Server bağlı değilse lokal ekle, bağlıysa server buffGranted gönderir
+            if(!socket||!socket.connected) addBuff(buff.type);
             player.score+=30;
-            spawnParticles(buff.x,buff.y,buff.color,12);
+            spawnParticles(buff.x,buff.y,buff.color,6);
             showBuffNotification(buff.type);
             Audio.buffPickup();
             emitBuffEaten(buff.id);
-            setTimeout(()=>{ buffItems[i]=createBuffItem(); }, 100);
+            setTimeout(()=>{ if(buffItems[i]) buffItems[i]=createBuffItem(); }, 200);
         }
         buff.pulse+=0.06;
     });
@@ -1591,15 +1592,21 @@ function updateBot(bot){
 
 function showBuffNotification(type){
     const buff=BUFFS[type];
+    // Eski bildirimi varsa kaldır
+    const old=document.getElementById('buffNotif');
+    if(old) old.remove();
     const n=document.createElement('div');
-    n.style.cssText=`position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:${buff.color}cc;color:#fff;padding:16px 32px;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:3px;z-index:999;pointer-events:none;animation:fadeOut 1.5s forwards;`;
+    n.id='buffNotif';
+    n.style.cssText=`position:fixed;top:40%;left:50%;transform:translateX(-50%);background:${buff.color}dd;color:#fff;padding:12px 28px;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;z-index:9999;pointer-events:none;opacity:1;transition:opacity 0.5s;white-space:nowrap;`;
     n.textContent=`${buff.icon} ${buff.name.toUpperCase()} AKTİF!`;
-    document.body.appendChild(n);setTimeout(()=>n.remove(),1500);
+    document.body.appendChild(n);
+    setTimeout(()=>{n.style.opacity='0';},800);
+    setTimeout(()=>n.remove(),1400);
 }
 
 function updateBuffHud(){
     let el=document.getElementById('buffHud');
-    if(!el){el=document.createElement('div');el.id='buffHud';el.style.cssText=`position:fixed;bottom:80px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:10;pointer-events:none;`;document.getElementById('gameContainer').appendChild(el)}
+    if(!el){el=document.createElement('div');el.id='buffHud';el.style.cssText=`position:fixed;bottom:90px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:10;pointer-events:none;max-width:90vw;flex-wrap:wrap;justify-content:center;`;document.getElementById('gameContainer').appendChild(el)}
     el.innerHTML=activeBuffs.map(b=>{const buff=BUFFS[b.type];const r=Math.ceil((b.endTime-Date.now())/1000);return`<div style="background:${buff.color}99;border:2px solid ${buff.color};border-radius:10px;padding:8px 14px;color:#fff;font-family:Rajdhani,sans-serif;font-weight:700;font-size:14px;text-align:center;">${buff.icon} ${buff.name}<br><span style="font-size:11px">${r}s</span></div>`}).join('');
 }
 
