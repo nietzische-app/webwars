@@ -78,7 +78,8 @@ body{background:#0a0a0f;font-family:'Rajdhani',sans-serif;overflow:hidden;width:
   #megaHitCount{font-size:9px;}
 }
 #gameOver{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(8px)}
-.go-content{background:rgba(20,10,40,.95);border:1px solid rgba(150,0,255,.3);border-radius:20px;padding:24px 32px;text-align:center;display:flex;flex-direction:column;gap:12px;max-height:90vh;overflow-y:auto;width:90%;max-width:400px;}
+@media(max-width:500px){.go-content{padding:14px 12px;gap:8px;font-size:13px;}}
+.go-content{background:rgba(20,10,40,.95);border:1px solid rgba(150,0,255,.3);border-radius:20px;padding:20px;text-align:center;display:flex;flex-direction:column;gap:10px;max-height:85vh;overflow-y:auto;width:92%;max-width:400px;box-sizing:border-box;}
 .go-content h2{font-family:'Bebas Neue',sans-serif;font-size:48px;color:#fff;letter-spacing:6px;text-shadow:0 0 30px rgba(150,0,255,.6)}
 @media(max-width:600px){.go-content{padding:16px 20px;gap:8px;}.go-content h2{font-size:36px;}}
 #finalScore{font-size:24px;color:#00e5a0;font-weight:700}
