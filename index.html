@@ -2214,7 +2214,7 @@ function toggleMute(){const en=Audio.toggle();document.getElementById('muteBtn')
     window.startGame = function(){
         const portrait = window.innerHeight > window.innerWidth;
         if(portrait){
-            document.getElementById('menu').style.display = 'none'; // menüyü gizle
+            // Menüyü gizleme! Sadece uyarı göster
             document.getElementById('rotateScreen').style.display = 'flex';
             window._pendingStart = true;
             return;
