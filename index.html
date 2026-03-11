@@ -848,10 +848,10 @@ function startGame() {
   </div>
 
   <!-- 3-Column Layout -->
-  <div style="position:relative;z-index:1;display:grid;grid-template-columns:1fr 300px 1fr;gap:24px;width:100%;max-width:1060px;margin:0 auto;padding:16px;align-items:start;min-height:100vh;padding-top:60px;box-sizing:border-box;">
+  <div id="menuGrid" style="position:relative;z-index:1;display:grid;grid-template-columns:1fr 300px 1fr;gap:24px;width:100%;max-width:1060px;margin:0 auto;padding:16px;align-items:start;min-height:100vh;padding-top:60px;box-sizing:border-box;">
 
     <!-- SOL KOLON: Nasıl Oynanır + Evrim -->
-    <div style="display:flex;flex-direction:column;gap:20px;">
+    <div id="menuLeft" style="display:flex;flex-direction:column;gap:20px;">
       <div style="background:rgba(0,0,0,0.35);border:1px solid rgba(150,0,255,0.2);border-radius:12px;padding:16px;">
         <div data-i18n="howToPlay" style="color:#9600ff;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;margin-bottom:14px;">🎮 NASIL OYNANIR</div>
         <div class="howto" style="text-align:left;gap:10px;">
@@ -868,7 +868,7 @@ function startGame() {
     </div>
 
     <!-- ORTA KOLON: Logo + Giriş + Oyna -->
-    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+    <div id="menuCenter" style="display:flex;flex-direction:column;align-items:center;gap:10px;">
       <h1 class="title" style="font-size:58px;">WEB<span>WARS</span></h1>
       <p class="subtitle" data-i18n="subtitle" style="font-size:12px;margin:0;">🕸️ Ağ at • Düşmanları küçült • Hükmet</p>
 
@@ -979,17 +979,33 @@ function startGame() {
       <p style="color:rgba(255,255,255,0.12);font-size:10px;">© 2026 Web Wars • All rights reserved</p>
     </div>
 
+    <!-- SAĞ KOLON: Boş (desktop'ta görünür) -->
+    <div id="menuRight" style="display:flex;flex-direction:column;gap:20px;"></div>
 
   </div>
 
   <!-- Responsive: mobile stacks to single column -->
   <style>
     @media(max-width:900px){
-      #menu > div:nth-child(3){grid-template-columns:1fr !important;max-width:400px;}
-      #menu > div:nth-child(3) > div:first-child,
-      #menu > div:nth-child(3) > div:last-child{display:none !important;}
+      #menuGrid{
+        display:flex !important;
+        flex-direction:column !important;
+        align-items:center !important;
+        padding:20px !important;
+        padding-top:80px !important;
+        gap:16px !important;
+      }
+      #menuLeft, #menuRight{
+        display:none !important;
+      }
+      #menuCenter{
+        width:100% !important;
+        max-width:360px !important;
+      }
     }
+  </style>
   
+  <style>
 /* Game Mode Selector */
 .modeBtn{background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:all 0.2s;color:#fff;font-family:'Rajdhani',sans-serif;text-align:center;}
 .modeBtn:hover{border-color:rgba(150,0,255,0.5);background:rgba(150,0,255,0.1);transform:translateY(-2px);}
