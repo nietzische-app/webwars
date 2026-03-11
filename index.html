@@ -325,7 +325,7 @@ function emitJoin(name) { if(socket && player) socket.emit('join', {name, color:
 function emitUpdate(x,y,size,score,vx,vy) { if(socket && (!emitUpdate.last || Date.now()-emitUpdate.last>50)) { socket.emit('move',{x,y,size,score,vx:vx||0,vy:vy||0}); emitUpdate.last=Date.now(); } }
 function emitWebShot(data) { if(socket) socket.emit('webShot',data); }
 function emitFoodEaten(id) { if(socket) socket.emit('foodEaten',id); }
-function emitBuffEaten(id) { if(socket) socket.emit('buffEaten',id); }
+function emitBuffEaten(id) { if(socket) socket.emit('ateBuff',id); }
 function emitPlayerDied() { if(socket) socket.emit('playerDied'); }
 </script>
 
@@ -1860,19 +1860,28 @@ function update(){
     if(DOM.megaReady) DOM.megaReady.style.display=megaCharge>=MEGA_MAX?'block':'none';
     if(DOM.megaHitCount){ const hits=Math.min(6,Math.floor(megaCharge/18)); DOM.megaHitCount.textContent=hits+' / 6 vuruş'; DOM.megaHitCount.style.color=megaCharge>=MEGA_MAX?'#ffaa00':'rgba(255,255,255,0.5)'; }
 
-    foods.forEach((food,i)=>{
-        if(dist(player,food)<player.size){
-            // Size artışı - max 200
-            player.size = Math.min(200, player.size + 0.4);
-            player.score += 5;
-            // Yeni yemek oluştur - farklı pozisyonda
-            foods[i] = createFood();
-            spawnParticles(food.x, food.y, food.color, 2);
-            Audio.eatFood();
-            checkEvolution(player);
+    // Food yeme - DEBUG ve düzeltme
+    if(foods && foods.length > 0) {
+        for(let i = 0; i < foods.length; i++) {
+            const food = foods[i];
+            if(!food) continue;
+            
+            const d = dist(player, food);
+            if(d < player.size + food.size) {
+                // Size artışı
+                player.size += 0.5;
+                if(player.size > 200) player.size = 200;
+                player.score += 5;
+                
+                // Yeni yemek oluştur
+                foods[i] = createFood();
+                spawnParticles(food.x, food.y, food.color, 3);
+                Audio.eatFood();
+                checkEvolution(player);
+            }
+            if(food.pulse !== undefined) food.pulse += 0.05;
         }
-        food.pulse += 0.05;
-    });
+    }
 
     buffItems.forEach((buff,i)=>{
         if(!buff || buff.eaten) return; // Guard: null veya zaten yenmiş
@@ -2001,10 +2010,22 @@ function update(){
         web.x+=web.vx;web.y+=web.vy;web.life-=0.012;
         if(web.x<0||web.x>CONFIG.worldSize||web.y<0||web.y>CONFIG.worldSize||web.life<=0)return false;
         
-        // Hedefler: botlar + diğer oyuncular (multiplayer)
+        // Hedefler: botlar + diğer oyuncular + PLAYER (bot weblerinden hasar alır)
         const targets=[...bots, ...Object.values(otherPlayers)].filter(t=>t!==web.owner&&t.alive);
+        
+        // Player'a çarpma kontrolü (bot webleri için)
+        if(web.owner !== player && player && player.alive && !abilityActive){
+            if(dist(web, player) < player.size + web.size){
+                player.size = Math.max(15, player.size * (1 - web.damage));
+                spawnParticles(web.x, web.y, web.color, 6);
+                Audio.webHit();
+                return false;
+            }
+        }
+        
+        // Diğer hedeflere çarpma
         for(const t of targets){
-            if(dist(web,t)<t.size+web.size&&!(t===player&&abilityActive)){
+            if(dist(web,t)<t.size+web.size){
                 t.size=Math.max(15,t.size*(1-web.damage));
                 spawnParticles(web.x,web.y,web.color,web.charged?14:6);
                 if(web.owner===player){
@@ -2166,10 +2187,38 @@ function draw(){
     particles.forEach(p=>{if(p.x<vx1||p.x>vx2||p.y<vy1||p.y>vy2)return;ctx.globalAlpha=p.life;ctx.beginPath();ctx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2);ctx.fillStyle=p.color;ctx.fill();});
     ctx.globalAlpha=1;
 
-    // Lokal webs (kendi attıklarımız)
+    // Lokal webs (tüm webler - hem kendi hem bot)
     webs.forEach(web=>{
-        if(web.trail && web.trail.length>1){ctx.beginPath();ctx.moveTo(web.trail[0].x,web.trail[0].y);web.trail.forEach(p=>ctx.lineTo(p.x,p.y));ctx.strokeStyle=web.color+'66';ctx.lineWidth=2;ctx.stroke()}
-        ctx.beginPath();ctx.arc(web.x,web.y,web.size,0,Math.PI*2);ctx.fillStyle=web.color;ctx.shadowColor=web.color;ctx.shadowBlur=10;ctx.fill();ctx.shadowBlur=0;
+        // Trail çiz
+        if(web.trail && web.trail.length > 1){
+            ctx.beginPath();
+            ctx.moveTo(web.trail[0].x, web.trail[0].y);
+            web.trail.forEach(p => ctx.lineTo(p.x, p.y));
+            ctx.strokeStyle = web.color + '88';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+        
+        // Owner'dan çıkış çizgisi (ilk birkaç frame)
+        if(web.owner && web.life > 0.9){
+            ctx.beginPath();
+            ctx.moveTo(web.owner.x, web.owner.y);
+            ctx.lineTo(web.x, web.y);
+            ctx.strokeStyle = web.color + '44';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        
+        // Web mermisi
+        ctx.beginPath();
+        ctx.arc(web.x, web.y, web.size, 0, Math.PI*2);
+        ctx.fillStyle = web.color;
+        ctx.shadowColor = web.color;
+        ctx.shadowBlur = 12;
+        ctx.fill();
+        ctx.shadowBlur = 0;
     });
     
     // Server webs (sadece DİĞER oyuncuların webleri - kendi webimiz zaten lokal'de var)
