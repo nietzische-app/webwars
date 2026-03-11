@@ -265,71 +265,75 @@ async function loadLeaderboard() {
 
 <script>
 // ── Multiplayer Socket ──
-let socket;
+let socket = null;
 let otherPlayers = {};
-try {
-    const socketUrl = window.location.hostname === 'webwars.online' || window.location.hostname === 'www.webwars.online'
-        ? 'https://webwars.online'
-        : window.location.origin;
-    socket = io(socketUrl, { secure: true, transports: ['websocket', 'polling'] });
 
-    // ── Server tick: güncelle tüm oyuncu + bot pozisyonlarını ──
-    socket.on('tick', data => {
-        if(!player || !player.alive) return;
-        // Diğer oyuncular
-        data.players.forEach(p => {
-            if(p.id === socket.id) return; // kendimiz
-            if(!otherPlayers[p.id]) otherPlayers[p.id] = {...p, trail:[]};
-            else { otherPlayers[p.id].x=p.x; otherPlayers[p.id].y=p.y; otherPlayers[p.id].size=p.size; otherPlayers[p.id].score=p.score; otherPlayers[p.id].alive=true; }
-        });
-        // Botlar server'dan geliyor - AMA alive durumunu KORUYORUZ
-        data.bots.forEach(sb => {
-            const existing = bots.find(b=>b.id===sb.id);
-            if(existing){
-                // Pozisyon ve size güncelle, AMA alive durumunu DEĞİŞTİRME
-                existing.x=sb.x; 
-                existing.y=sb.y; 
-                existing.size=sb.size; 
-                existing.score=sb.score;
-                // alive durumunu server'dan ALMA - lokal kontrol ediyoruz
-            } else { 
-                bots.push({...sb, alive:true, vx:0, vy:0}); 
+// Socket.IO sadece yüklenmişse bağlan
+if(typeof io !== 'undefined') {
+    try {
+        const socketUrl = window.location.hostname === 'webwars.online' || window.location.hostname === 'www.webwars.online'
+            ? 'https://webwars.online'
+            : window.location.origin;
+        socket = io(socketUrl, { secure: true, transports: ['websocket', 'polling'] });
+
+        // ── Server tick: güncelle tüm oyuncu + bot pozisyonlarını ──
+        socket.on('tick', data => {
+            if(!player || !player.alive) return;
+            // Diğer oyuncular
+            data.players.forEach(p => {
+                if(p.id === socket.id) return; // kendimiz
+                if(!otherPlayers[p.id]) otherPlayers[p.id] = {...p, trail:[]};
+                else { otherPlayers[p.id].x=p.x; otherPlayers[p.id].y=p.y; otherPlayers[p.id].size=p.size; otherPlayers[p.id].score=p.score; otherPlayers[p.id].alive=true; }
+            });
+            // Botlar server'dan geliyor - AMA alive durumunu KORUYORUZ
+            if(data.bots) {
+                data.bots.forEach(sb => {
+                    const existing = bots.find(b=>b.id===sb.id);
+                    if(existing){
+                        existing.x=sb.x; 
+                        existing.y=sb.y; 
+                        existing.size=sb.size; 
+                        existing.score=sb.score;
+                    } else { 
+                        bots.push({...sb, alive:true, vx:0, vy:0}); 
+                    }
+                });
             }
+            // Webs artık server'dan geliyor (sadece görsel)
+            serverWebs = data.webs || [];
         });
-        // Webs artık server'dan geliyor (sadece görsel)
-        serverWebs = data.webs || [];
-    });
 
-    // Init: ilk dünya durumu
-    socket.on('init', d => {
-        if(d.foods) foods = d.foods;
-        if(d.buffItems) buffItems = d.buffItems;
-        if(d.bots) bots = d.bots.map(b=>({...b,alive:true,vx:0,vy:0}));
-        mySocketId = d.id;
-        console.log('World initialized, id:', d.id);
-    });
+        // Init: ilk dünya durumu
+        socket.on('init', d => {
+            if(d.foods) foods = d.foods;
+            if(d.buffItems) buffItems = d.buffItems;
+            if(d.bots) bots = d.bots.map(b=>({...b,alive:true,vx:0,vy:0}));
+            mySocketId = d.id;
+            console.log('World initialized, id:', d.id);
+        });
 
-    // Yemek & buff güncellemeleri
-    socket.on('foodUpdate', d => { if(typeof foods!=='undefined'){foods=foods.filter(f=>f.id!==d.removed);if(d.added)foods.push(d.added);} });
-    socket.on('buffUpdate', d => { if(typeof buffItems!=='undefined'){buffItems=buffItems.filter(b=>b.id!==d.removed);if(d.added)buffItems.push(d.added);} });
-    socket.on('buffGranted', d => { if(typeof addBuff==='function') addBuff(d.type); });
+        // Yemek & buff güncellemeleri
+        socket.on('foodUpdate', d => { if(typeof foods!=='undefined'){foods=foods.filter(f=>f.id!==d.removed);if(d.added)foods.push(d.added);} });
+        socket.on('buffUpdate', d => { if(typeof buffItems!=='undefined'){buffItems=buffItems.filter(b=>b.id!==d.removed);if(d.added)buffItems.push(d.added);} });
+        socket.on('buffGranted', d => { if(typeof addBuff==='function') addBuff(d.type); });
 
-    // İsabet onayı (mega bar doldur)
-    socket.on('webHitConfirm', d => { megaCharge = Math.min(MEGA_MAX, megaCharge + d.megaGain); });
+        // İsabet onayı (mega bar doldur)
+        socket.on('webHitConfirm', d => { megaCharge = Math.min(MEGA_MAX, megaCharge + d.megaGain); });
 
-    // Hasar aldık
-    socket.on('tookDamage', d => { if(player && d.newSize < player.size) player.size = Math.max(15, d.newSize); }); // sadece küçülme
+        // Hasar aldık
+        socket.on('tookDamage', d => { if(player && d.newSize < player.size) player.size = Math.max(15, d.newSize); });
 
-    // Öldürüldük
-    socket.on('killedByBot', d => { if(player&&player.alive){ player.alive=false; showNotification('💀 '+d.killerName+' seni yedi!','#ff3366'); setTimeout(()=>endGame(),800); } });
-    socket.on('killedByPlayer', d => { if(player&&player.alive){ player.alive=false; showNotification('💀 '+d.killerName+' seni yedi!','#ff3366'); setTimeout(()=>endGame(),800); } });
+        // Öldürüldük
+        socket.on('killedByBot', d => { if(player&&player.alive){ player.alive=false; showNotification('💀 '+d.killerName+' seni yedi!','#ff3366'); setTimeout(()=>endGame(),800); } });
+        socket.on('killedByPlayer', d => { if(player&&player.alive){ player.alive=false; showNotification('💀 '+d.killerName+' seni yedi!','#ff3366'); setTimeout(()=>endGame(),800); } });
 
-    socket.on('playerLeft', id => { delete otherPlayers[id]; });
-    socket.on('onlineCount', n => { const el=document.getElementById('onlineCount'); if(el) el.textContent='🟢 '+n+' Çevrimiçi'; });
-    socket.on('roomUpdate', d => { const el=document.getElementById('partyPlayerList'); if(el) el.textContent=d.count+' oyuncu odada'; });
-    socket.on('roomError', msg => alert(msg));
+        socket.on('playerLeft', id => { delete otherPlayers[id]; });
+        socket.on('onlineCount', n => { const el=document.getElementById('onlineCount'); if(el) el.textContent='🟢 '+n+' Çevrimiçi'; });
+        socket.on('roomUpdate', d => { const el=document.getElementById('partyPlayerList'); if(el) el.textContent=d.count+' oyuncu odada'; });
+        socket.on('roomError', msg => alert(msg));
 
-} catch(e) { console.log('Socket error:', e); }
+    } catch(e) { console.log('Socket error:', e); socket = null; }
+}
 
 function emitJoin(name) { if(socket && player) socket.emit('join', {name, color: player.color}); }
 function emitUpdate(x,y,size,score,vx,vy) { if(socket && (!emitUpdate.last || Date.now()-emitUpdate.last>50)) { socket.emit('move',{x,y,size,score,vx:vx||0,vy:vy||0}); emitUpdate.last=Date.now(); } }
@@ -1149,7 +1153,7 @@ window.addEventListener('click',()=>Audio.resume(),{once:true});
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
 
-const CONFIG={worldSize:3000,botCount:15,webSpeed:12,webCooldown:1200,webDamage:0.18,eatSizeRatio:0.75,foodCount:120,buffCount:8,gridSize:150};
+const CONFIG={worldSize:3000,botCount:15,webSpeed:12,webCooldown:1200,webDamageBase:4,webDamagePercent:0.06,eatSizeRatio:0.75,foodCount:120,buffCount:8,gridSize:150};
 
 // ══════════════════════════════════════════
 //  PERFORMANS: DOM Element Cache
@@ -1419,7 +1423,7 @@ function createBuffItem(){
 
 function createWeb(owner,tx,ty,angleOffset=0,charged=false){
     const a=Math.atan2(ty-owner.y,tx-owner.x)+angleOffset;
-    const _ang=Math.atan2(ty-owner.y,tx-owner.x)+angleOffset;return{x:owner.x,y:owner.y,dx:Math.cos(_ang),dy:Math.sin(_ang),vx:Math.cos(a)*(charged?CONFIG.webSpeed*0.7:CONFIG.webSpeed),vy:Math.sin(a)*(charged?CONFIG.webSpeed*0.7:CONFIG.webSpeed),owner,color:owner.color,size:charged?28:10,life:charged?1.5:1,trail:[],charged,damage:charged?0.45:CONFIG.webDamage}
+    const _ang=Math.atan2(ty-owner.y,tx-owner.x)+angleOffset;return{x:owner.x,y:owner.y,dx:Math.cos(_ang),dy:Math.sin(_ang),vx:Math.cos(a)*(charged?CONFIG.webSpeed*0.7:CONFIG.webSpeed),vy:Math.sin(a)*(charged?CONFIG.webSpeed*0.7:CONFIG.webSpeed),owner,color:owner.color,size:charged?28:10,life:charged?1.5:1,trail:[],charged,isCharged:charged}
 }
 
 function showBeastHUD(){const h=document.createElement('div');h.id='beastHUD';h.style.cssText='position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(255,0,0,0.15);border:1px solid rgba(255,0,0,0.4);border-radius:10px;padding:8px 20px;color:#ff3366;font-family:Bebas Neue,sans-serif;font-size:16px;letter-spacing:2px;z-index:100;text-align:center;';h.innerHTML='👹 BEAST MODE &nbsp;|&nbsp; ❤️❤️❤️';document.body.appendChild(h);}
@@ -2032,13 +2036,25 @@ function update(){
         web.x+=web.vx;web.y+=web.vy;web.life-=0.012;
         if(web.x<0||web.x>CONFIG.worldSize||web.y<0||web.y>CONFIG.worldSize||web.life<=0)return false;
         
-        // Hedefler: botlar + diğer oyuncular + PLAYER (bot weblerinden hasar alır)
+        // Yeni hasar hesaplama fonksiyonu
+        // Sabit hasar + küçük yüzdelik = büyük oyuncular daha az etkilenir
+        function calculateDamage(targetSize, isCharged) {
+            const baseDamage = isCharged ? 8 : CONFIG.webDamageBase;  // Sabit hasar
+            const percentDamage = targetSize * (isCharged ? 0.12 : CONFIG.webDamagePercent); // %6 veya %12
+            const totalDamage = baseDamage + percentDamage;
+            // Minimum 15 boyut, maksimum hasar = boyutun %25'i
+            const maxDamage = targetSize * 0.25;
+            return Math.min(totalDamage, maxDamage);
+        }
+        
+        // Hedefler: botlar + diğer oyuncular
         const targets=[...bots, ...Object.values(otherPlayers)].filter(t=>t!==web.owner&&t.alive);
         
         // Player'a çarpma kontrolü (bot webleri için)
         if(web.owner !== player && player && player.alive && !abilityActive){
             if(dist(web, player) < player.size + web.size){
-                player.size = Math.max(15, player.size * (1 - web.damage));
+                const damage = calculateDamage(player.size, web.isCharged);
+                player.size = Math.max(15, player.size - damage);
                 spawnParticles(web.x, web.y, web.color, 6);
                 Audio.webHit();
                 return false;
@@ -2048,8 +2064,9 @@ function update(){
         // Diğer hedeflere çarpma
         for(const t of targets){
             if(dist(web,t)<t.size+web.size){
-                t.size=Math.max(15,t.size*(1-web.damage));
-                spawnParticles(web.x,web.y,web.color,web.charged?14:6);
+                const damage = calculateDamage(t.size, web.isCharged);
+                t.size = Math.max(15, t.size - damage);
+                spawnParticles(web.x,web.y,web.color,web.isCharged?14:6);
                 if(web.owner===player){
                     player.score+=20;
                     Audio.webHit();
