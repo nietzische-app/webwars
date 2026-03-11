@@ -353,9 +353,55 @@ if(typeof io !== 'undefined') {
         socket.on('onlineCount', n => { const el=document.getElementById('onlineCount'); if(el) el.textContent='🟢 '+n+' Çevrimiçi'; });
         socket.on('roomUpdate', d => { const el=document.getElementById('partyPlayerList'); if(el) el.textContent=d.count+' oyuncu odada'; });
         socket.on('roomError', msg => alert(msg));
+        
+        // Ping sistemi
+        socket.on('pong', () => {
+            const ping = Date.now() - pingStart;
+            currentPing = ping;
+            updatePingDisplay(ping);
+        });
 
     } catch(e) { console.log('Socket error:', e); socket = null; }
 }
+
+// Ping değişkenleri
+let pingStart = 0;
+let currentPing = 0;
+
+function measurePing() {
+    if(socket && socket.connected) {
+        pingStart = Date.now();
+        socket.emit('ping');
+    } else {
+        // Offline mod - simüle ping
+        updatePingDisplay(-1);
+    }
+}
+
+function updatePingDisplay(ping) {
+    const el = document.getElementById('pingDisplay');
+    if(!el) return;
+    
+    if(ping < 0) {
+        el.textContent = '📶 Offline';
+        el.style.color = 'rgba(255,255,255,0.3)';
+    } else if(ping < 50) {
+        el.textContent = '📶 ' + ping + 'ms';
+        el.style.color = '#00e5a0'; // Yeşil - mükemmel
+    } else if(ping < 100) {
+        el.textContent = '📶 ' + ping + 'ms';
+        el.style.color = '#ffaa00'; // Sarı - iyi
+    } else if(ping < 200) {
+        el.textContent = '📶 ' + ping + 'ms';
+        el.style.color = '#ff6600'; // Turuncu - orta
+    } else {
+        el.textContent = '📶 ' + ping + 'ms';
+        el.style.color = '#ff3366'; // Kırmızı - kötü
+    }
+}
+
+// Her 2 saniyede ping ölç
+setInterval(measurePing, 2000);
 
 function emitJoin(name) { if(socket && player) socket.emit('join', {name, color: player.color}); }
 function emitUpdate(x,y,size,score,vx,vy) { if(socket && (!emitUpdate.last || Date.now()-emitUpdate.last>50)) { socket.emit('move',{x,y,size,score,vx:vx||0,vy:vy||0}); emitUpdate.last=Date.now(); } }
@@ -1082,6 +1128,7 @@ function startGame() {
     <div id="scoreBox">
       <span id="playerNameHud"></span>
       <span id="sizeDisplay">Boyut: 1</span>
+      <span id="pingDisplay" style="font-size:12px;color:rgba(255,255,255,0.5);">📶 --ms</span>
     </div>
     <div id="leaderboard">
       <div class="lb-title" onclick="toggleLb()" style="cursor:pointer;user-select:none;">🏆 SIRALAMA <span id="lbToggleIcon" style="font-size:10px;opacity:0.6;">▼</span></div>
