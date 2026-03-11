@@ -282,14 +282,19 @@ try {
             if(!otherPlayers[p.id]) otherPlayers[p.id] = {...p, trail:[]};
             else { otherPlayers[p.id].x=p.x; otherPlayers[p.id].y=p.y; otherPlayers[p.id].size=p.size; otherPlayers[p.id].score=p.score; otherPlayers[p.id].alive=true; }
         });
-        // Botlar server'dan geliyor artık
-        const serverBotIds = new Set(data.bots.map(b=>b.id));
-        // Temizle eski botları
-        bots = bots.filter(b => serverBotIds.has(b.id));
+        // Botlar server'dan geliyor - AMA alive durumunu KORUYORUZ
         data.bots.forEach(sb => {
             const existing = bots.find(b=>b.id===sb.id);
-            if(existing){ existing.x=sb.x; existing.y=sb.y; existing.size=sb.size; existing.score=sb.score; existing.alive=true; }
-            else { bots.push({...sb, alive:true, vx:0, vy:0}); }
+            if(existing){
+                // Pozisyon ve size güncelle, AMA alive durumunu DEĞİŞTİRME
+                existing.x=sb.x; 
+                existing.y=sb.y; 
+                existing.size=sb.size; 
+                existing.score=sb.score;
+                // alive durumunu server'dan ALMA - lokal kontrol ediyoruz
+            } else { 
+                bots.push({...sb, alive:true, vx:0, vy:0}); 
+            }
         });
         // Webs artık server'dan geliyor (sadece görsel)
         serverWebs = data.webs || [];
