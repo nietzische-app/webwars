@@ -1446,12 +1446,11 @@ function startGame_original(){
     // Botlar + food server'dan gelecek, client fallback olarak lokal tutar
     bots=[];
     webs=[];
-    if(!socket || !socket.connected) {
-        // Offline fallback: local bots & food
-        bots=Array.from({length:CONFIG.botCount},(_,i)=>createBot(i));
-        foods=Array.from({length:CONFIG.foodCount},createFood);
-        buffItems=Array.from({length:CONFIG.buffCount},createBuffItem);
-    }
+    
+    // Her zaman lokal olarak oluştur (server varsa üzerine yazılır)
+    bots=Array.from({length:CONFIG.botCount},(_,i)=>createBot(i));
+    foods=Array.from({length:CONFIG.foodCount},createFood);
+    buffItems=Array.from({length:CONFIG.buffCount},createBuffItem);
     
     particles=[];activeBuffs=[];mouseHeld=false;chargeStart=0;lastWebTime=0;megaCharge=0;window.reviveUsed=false;window.challengeCompleted=false;
     
