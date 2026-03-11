@@ -176,44 +176,65 @@ body{background:#0a0a0f;font-family:'Rajdhani',sans-serif;overflow:hidden;width:
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script>
-const firebaseConfig = {
-    apiKey: "AIzaSyBO4-D9DM_hoeQAdAUhIYqs4rC_bRlLLhk",
-    authDomain: "webwars5.firebaseapp.com",
-    projectId: "webwars5",
-    storageBucket: "webwars5.firebasestorage.app",
-    messagingSenderId: "101726693105",
-    appId: "1:101726693105:web:f2bc0da00824d3e900ab50"
-};
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+let auth = null;
+let db = null;
 let currentUser = null;
 
-auth.onAuthStateChanged(user => {
-    currentUser = user;
-    if(user) {
-        document.getElementById('userPanel').style.display = 'flex'; loadLeaderboard();
-        document.getElementById('userAvatar').src = user.photoURL || '';
-        document.getElementById('userName').textContent = user.displayName || user.email;
-        // Her iki input'a da ismi yaz
-        const displayName = user.displayName ? user.displayName.split(' ')[0] : '';
-        const nameInput1 = document.getElementById('playerName');
-        const nameInput2 = document.getElementById('playerNameLoggedIn');
-        if(nameInput1) nameInput1.value = displayName;
-        if(nameInput2) nameInput2.value = displayName;
-        document.getElementById('loginPanel').style.display = 'none';
-        loadUserStats();
-    } else {
-        document.getElementById('userPanel').style.display = 'none';
-        document.getElementById('loginPanel').style.display = 'flex';
+try {
+    const firebaseConfig = {
+        apiKey: "AIzaSyBO4-D9DM_hoeQAdAUhIYqs4rC_bRlLLhk",
+        authDomain: "webwars5.firebaseapp.com",
+        projectId: "webwars5",
+        storageBucket: "webwars5.firebasestorage.app",
+        messagingSenderId: "101726693105",
+        appId: "1:101726693105:web:f2bc0da00824d3e900ab50"
+    };
+    
+    if(typeof firebase !== 'undefined') {
+        firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        db = firebase.firestore();
+        
+        auth.onAuthStateChanged(user => {
+            currentUser = user;
+            try {
+                if(user) {
+                    const userPanel = document.getElementById('userPanel');
+                    const loginPanel = document.getElementById('loginPanel');
+                    const userAvatar = document.getElementById('userAvatar');
+                    const userName = document.getElementById('userName');
+                    
+                    if(userPanel) userPanel.style.display = 'flex';
+                    if(userAvatar) userAvatar.src = user.photoURL || '';
+                    if(userName) userName.textContent = user.displayName || user.email;
+                    
+                    const displayName = user.displayName ? user.displayName.split(' ')[0] : '';
+                    const nameInput1 = document.getElementById('playerName');
+                    const nameInput2 = document.getElementById('playerNameLoggedIn');
+                    if(nameInput1) nameInput1.value = displayName;
+                    if(nameInput2) nameInput2.value = displayName;
+                    if(loginPanel) loginPanel.style.display = 'none';
+                    
+                    if(typeof loadLeaderboard === 'function') loadLeaderboard();
+                    if(typeof loadUserStats === 'function') loadUserStats();
+                } else {
+                    const userPanel = document.getElementById('userPanel');
+                    const loginPanel = document.getElementById('loginPanel');
+                    if(userPanel) userPanel.style.display = 'none';
+                    if(loginPanel) loginPanel.style.display = 'flex';
+                }
+            } catch(e) { console.log('Auth state error:', e); }
+        });
     }
-});
+} catch(e) { console.log('Firebase init error:', e); }
 
 function loginGoogle() {
+    if(!auth) { alert('Giriş şu anda kullanılamıyor'); return; }
     const provider = new firebase.auth.GoogleAuthProvider();
     auth.signInWithPopup(provider).catch(e => console.log(e));
 }
 function loginFacebook() {
+    if(!auth) { alert('Giriş şu anda kullanılamıyor'); return; }
     const provider = new firebase.auth.FacebookAuthProvider();
     auth.signInWithPopup(provider).catch(e => alert('Facebook girişi için önce Firebase konsolunda Facebook sağlayıcısını aktive edin.'));
 }
@@ -587,15 +608,17 @@ function closeModal(id) {
 // Online player count (simulated with socket)
 function updateOnlineCount(n) {
     const el = document.getElementById('onlineCount');
-    if(el) el.textContent = '🟢 ' + n + ' ' + t('online');
+    if(el) el.textContent = '🟢 ' + n + ' ' + (typeof t === 'function' ? t('online') : 'Çevrimiçi');
 }
 
 window.addEventListener('load', () => {
-    const serverStatus = document.getElementById('serverStatus');
-    if(serverStatus) serverStatus.style.display='flex';
-    applyLang();
-    checkCookie();
-    setTimeout(() => updateOnlineCount(Math.floor(Math.random()*8)+3), 1000);
+    try {
+        const serverStatus = document.getElementById('serverStatus');
+        if(serverStatus) serverStatus.style.display='flex';
+        if(typeof applyLang === 'function') applyLang();
+        if(typeof checkCookie === 'function') checkCookie();
+        setTimeout(() => updateOnlineCount(Math.floor(Math.random()*8)+3), 1000);
+    } catch(e) { console.log('Load event error:', e); }
 });
 </script>
 
@@ -676,26 +699,30 @@ function copyPartyLink() {
 
 // Check URL for room code on load
 window.addEventListener('load', () => {
-    const serverStatus = document.getElementById('serverStatus');
-    if(serverStatus) serverStatus.style.display='flex';
-    const params = new URLSearchParams(window.location.search);
-    const room = params.get('room');
-    if(room) {
-        selectMode('party');
-        const inputEl = document.getElementById('partyCodeInput');
-        const infoEl = document.getElementById('partyRoomInfo');
-        const codeEl = document.getElementById('partyRoomCode');
-        if(inputEl) inputEl.value = room.toUpperCase();
-        if(infoEl) infoEl.style.display = 'block';
-        if(codeEl) codeEl.textContent = room.toUpperCase();
-        partyRoomCode = room.toUpperCase();
-    }
-    // Load challenge stars from localStorage
-    CHALLENGES.forEach((ch,i) => {
-        const stars = localStorage.getItem('ww_ch_' + i) || 0;
-        const starsEl = document.getElementById('ch'+i+'-stars');
-        if(starsEl) starsEl.textContent = '★'.repeat(stars) + '☆'.repeat(3-stars);
-    });
+    try {
+        const serverStatus = document.getElementById('serverStatus');
+        if(serverStatus) serverStatus.style.display='flex';
+        const params = new URLSearchParams(window.location.search);
+        const room = params.get('room');
+        if(room && typeof selectMode === 'function') {
+            selectMode('party');
+            const inputEl = document.getElementById('partyCodeInput');
+            const infoEl = document.getElementById('partyRoomInfo');
+            const codeEl = document.getElementById('partyRoomCode');
+            if(inputEl) inputEl.value = room.toUpperCase();
+            if(infoEl) infoEl.style.display = 'block';
+            if(codeEl) codeEl.textContent = room.toUpperCase();
+            partyRoomCode = room.toUpperCase();
+        }
+        // Load challenge stars from localStorage
+        if(typeof CHALLENGES !== 'undefined') {
+            CHALLENGES.forEach((ch,i) => {
+                const stars = localStorage.getItem('ww_ch_' + i) || 0;
+                const starsEl = document.getElementById('ch'+i+'-stars');
+                if(starsEl) starsEl.textContent = '★'.repeat(stars) + '☆'.repeat(3-stars);
+            });
+        }
+    } catch(e) { console.log('Room load error:', e); }
 });
 
 // Beast mode config
