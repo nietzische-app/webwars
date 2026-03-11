@@ -745,8 +745,7 @@ function startGame() {
 
 
 <!-- Loading Screen -->
-<div id="loadingScreen" style="position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0f;">
-  <img src="/loading-screen.jpg" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;opacity:0.6;">
+<div id="loadingScreen" style="position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 40%,#1a0a2e 0%,#0a0a0f 70%);">
   <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:20px;">
     <h1 style="font-family:'Bebas Neue',sans-serif;font-size:72px;color:#fff;letter-spacing:8px;text-shadow:0 0 40px #9600ff;">WEB<span style="color:#00e5a0;">WARS</span></h1>
     <div style="width:200px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;">
@@ -1363,12 +1362,20 @@ function lerp(a,b,t){return a+(b-a)*t}
 function hasBuff(type){return activeBuffs.some(b=>b.type===type&&b.endTime>Date.now())}
 
 function addBuff(type){
-    const ex=activeBuffs.find(b=>b.type===type);
-    if(ex){
-        ex.endTime=Date.now()+BUFFS[type].duration; // sadece süreyi yenile, size ekleme
+    if(!BUFFS[type]) return; // Geçersiz buff tipi
+    
+    const existing = activeBuffs.find(b => b.type === type);
+    if(existing){
+        // Buff zaten var - sadece süreyi yenile, size EKLEME
+        existing.endTime = Date.now() + BUFFS[type].duration;
     } else {
-        activeBuffs.push({type,endTime:Date.now()+BUFFS[type].duration});
-        if(type==='GIANT'&&player) player.size=Math.min(player.size+20, 120); // sabit +20, max 120 // max +25
+        // Yeni buff
+        activeBuffs.push({type, endTime: Date.now() + BUFFS[type].duration});
+        
+        // GIANT buff ilk alımda +15 size (max 150)
+        if(type === 'GIANT' && player){
+            player.size = Math.min(player.size + 15, 150);
+        }
     }
 }
 
@@ -1854,30 +1861,48 @@ function update(){
     if(DOM.megaHitCount){ const hits=Math.min(6,Math.floor(megaCharge/18)); DOM.megaHitCount.textContent=hits+' / 6 vuruş'; DOM.megaHitCount.style.color=megaCharge>=MEGA_MAX?'#ffaa00':'rgba(255,255,255,0.5)'; }
 
     foods.forEach((food,i)=>{
-        if(dist(player,food)<player.size){player.size+=0.5;player.score+=5;foods[i]=createFood();spawnParticles(food.x,food.y,food.color,2);Audio.eatFood();checkEvolution(player)}
-        food.pulse+=0.05;
+        if(dist(player,food)<player.size){
+            // Size artışı - max 200
+            player.size = Math.min(200, player.size + 0.4);
+            player.score += 5;
+            // Yeni yemek oluştur - farklı pozisyonda
+            foods[i] = createFood();
+            spawnParticles(food.x, food.y, food.color, 2);
+            Audio.eatFood();
+            checkEvolution(player);
+        }
+        food.pulse += 0.05;
     });
 
     buffItems.forEach((buff,i)=>{
-        if(!buff.eaten && dist(player,buff)<player.size+buff.size){
-            buff.eaten=true;
+        if(!buff || buff.eaten) return; // Guard: null veya zaten yenmiş
+        
+        if(dist(player,buff) < player.size + buff.size){
+            buff.eaten = true; // Hemen işaretle
+            
             if(buff.isMine){
                 // MAYIM! Küçült ve bildirim göster
                 player.size = Math.max(20, player.size * 0.7);
                 showMineNotification();
-                spawnParticles(buff.x,buff.y,'#ff3366',10);
-                Audio.playerDeath && Audio.webHit();
+                spawnParticles(buff.x, buff.y, '#ff3366', 10);
+                Audio.webHit();
             } else {
-                if(!socket||!socket.connected) addBuff(buff.type);
-                player.score+=30;
-                spawnParticles(buff.x,buff.y,buff.color,6);
+                // Normal buff
+                if(!socket || !socket.connected) addBuff(buff.type);
+                player.score += 30;
+                spawnParticles(buff.x, buff.y, buff.color, 6);
                 showBuffNotification(buff.type);
                 Audio.buffPickup();
                 emitBuffEaten(buff.id);
             }
-            setTimeout(()=>{ buffItems[i]=createBuffItem(); }, 300);
+            
+            // Yeni buff oluştur
+            setTimeout(()=>{ 
+                if(buffItems[i]) buffItems[i] = createBuffItem(); 
+            }, 300);
         }
-        buff.pulse+=0.06;
+        
+        if(buff && !buff.eaten) buff.pulse += 0.06;
     });
 
     if(!socket||!socket.connected) bots.forEach(bot=>{if(bot.alive)updateBot(bot)});
@@ -1907,26 +1932,64 @@ function update(){
     bots.forEach(bot=>{
         if(!bot.alive) return;
         buffItems.forEach((buff,i)=>{
-            if(!buff||buff.eaten) return;
-            if(dist(bot,buff)<bot.size+buff.size){
-                buff.eaten=true;
+            if(!buff || buff.eaten) return; // Guard
+            if(dist(bot,buff) < bot.size + buff.size){
+                buff.eaten = true; // Hemen işaretle
+                
                 if(!buff.isMine && BUFFS[buff.type]){
                     bot._buffEndTime = Date.now() + BUFFS[buff.type].duration;
                     bot._buffType = buff.type;
-                    if(buff.type==='GIANT') bot.size=Math.min(bot.size+15, 100);
-                    if(buff.type==='SPEED') bot._speedBuff=true;
+                    if(buff.type === 'GIANT') bot.size = Math.min(bot.size + 15, 100);
+                    if(buff.type === 'SPEED') bot._speedBuff = true;
                 }
-                setTimeout(()=>{ buffItems[i]=createBuffItem(); }, 300);
+                
+                setTimeout(()=>{ 
+                    if(buffItems[i]) buffItems[i] = createBuffItem(); 
+                }, 300);
             }
         });
-        if(bot._buffEndTime && Date.now()>bot._buffEndTime){ bot._buffType=null; bot._speedBuff=false; }
+        // Buff süresi doldu mu?
+        if(bot._buffEndTime && Date.now() > bot._buffEndTime){ 
+            bot._buffType = null; 
+            bot._speedBuff = false; 
+        }
     });
 
     bots.forEach(bot=>{
         if(!bot.alive)return;
         const d=dist(player,bot);
-        if(d<player.size&&bot.size<player.size*CONFIG.eatSizeRatio){player.size=Math.min(200, player.size+Math.min(bot.size*0.3, 15));player.score+=Math.floor(bot.size*10);if(window.activeGameMode==='challenge'&&window.challengeStats)window.challengeStats.kills++;spawnParticles(bot.x,bot.y,bot.color,10);Audio.eatEnemy();checkEvolution(player);onPlayerKill();bot.alive=false;setTimeout(()=>{Object.assign(bot,createBot(bots.indexOf(bot)))},5000)}
-        if(d<bot.size&&player.size<bot.size*CONFIG.eatSizeRatio){spawnParticles(player.x,player.y,player.color,15);player.alive=false;Audio.playerDeath();setTimeout(endGame,1000)}
+        // Oyuncu botu yiyor
+        if(d<player.size && bot.size<player.size*CONFIG.eatSizeRatio && bot.alive){
+            // Bot'u hemen öldür (tekrar yenmesini engelle)
+            bot.alive=false;
+            
+            // Size artışı - sınırlı
+            const sizeGain = Math.min(bot.size * 0.25, 12); // Max 12 birim artış
+            player.size = Math.min(200, player.size + sizeGain);
+            player.score += Math.floor(bot.size * 10);
+            
+            if(window.activeGameMode==='challenge' && window.challengeStats){
+                window.challengeStats.kills++;
+            }
+            
+            spawnParticles(bot.x,bot.y,bot.color,10);
+            Audio.eatEnemy();
+            checkEvolution(player);
+            onPlayerKill();
+            
+            // Bot'u 5 saniye sonra yeniden oluştur
+            const botIndex = bots.indexOf(bot);
+            setTimeout(()=>{
+                if(bots[botIndex]) Object.assign(bots[botIndex], createBot(botIndex));
+            }, 5000);
+        }
+        // Bot oyuncuyu yiyor
+        if(d<bot.size && player.size<bot.size*CONFIG.eatSizeRatio && player.alive){
+            spawnParticles(player.x,player.y,player.color,15);
+            player.alive=false;
+            Audio.playerDeath();
+            setTimeout(endGame,1000);
+        }
     });
 
     webs.forEach(w=>{if(!w.trail)w.trail=[]});
@@ -2103,15 +2166,17 @@ function draw(){
     particles.forEach(p=>{if(p.x<vx1||p.x>vx2||p.y<vy1||p.y>vy2)return;ctx.globalAlpha=p.life;ctx.beginPath();ctx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2);ctx.fillStyle=p.color;ctx.fill();});
     ctx.globalAlpha=1;
 
-    // Lokal webs
+    // Lokal webs (kendi attıklarımız)
     webs.forEach(web=>{
         if(web.trail && web.trail.length>1){ctx.beginPath();ctx.moveTo(web.trail[0].x,web.trail[0].y);web.trail.forEach(p=>ctx.lineTo(p.x,p.y));ctx.strokeStyle=web.color+'66';ctx.lineWidth=2;ctx.stroke()}
         ctx.beginPath();ctx.arc(web.x,web.y,web.size,0,Math.PI*2);ctx.fillStyle=web.color;ctx.shadowColor=web.color;ctx.shadowBlur=10;ctx.fill();ctx.shadowBlur=0;
     });
     
-    // Server webs (multiplayer'dan gelen)
-    if(typeof serverWebs !== 'undefined' && serverWebs.length > 0){
+    // Server webs (sadece DİĞER oyuncuların webleri - kendi webimiz zaten lokal'de var)
+    if(typeof serverWebs !== 'undefined' && serverWebs.length > 0 && typeof mySocketId !== 'undefined'){
         serverWebs.forEach(web=>{
+            // Kendi webimizi atlat - zaten lokal'de çiziliyor
+            if(web.ownerId === mySocketId) return;
             if(web.x<vx1||web.x>vx2||web.y<vy1||web.y>vy2)return; // viewport culling
             ctx.beginPath();ctx.arc(web.x,web.y,web.size||10,0,Math.PI*2);
             ctx.fillStyle=web.color||'#9600ff';ctx.shadowColor=web.color||'#9600ff';ctx.shadowBlur=10;ctx.fill();ctx.shadowBlur=0;
