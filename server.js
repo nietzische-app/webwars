@@ -21,6 +21,9 @@ const CONFIG = {
     tickRate: 33, webSpeed: 12, webCooldown: 1200,
     webDamage: 0.18, webDamageCharged: 0.45,
     eatSizeRatio: 0.75, botWebRange: 350, botChaseRange: 400, botFleeRatio: 0.6,
+    maxWebCount: 100, // Performans: Max web sayısı
+    maxPlayerSize: 200, // Max oyuncu boyutu
+    maxBotSize: 150 // Max bot boyutu
 };
 const COLORS = ['#9600ff','#00e5a0','#ff3366','#ffaa00','#00aaff','#ff6600','#cc00ff','#00ffcc'];
 const BUFF_KEYS = ['TRIPLE_SHOT','SPEED','GIANT','RAPID_FIRE'];
@@ -100,14 +103,14 @@ function updateBot(bot){
 
     // Eat food
     foods.filter(f=>dist(bot,f)<bot.size+f.size).forEach(f=>{
-        bot.size+=f.size*0.1;bot.score+=2;
+        bot.size=Math.min(CONFIG.maxBotSize, bot.size+f.size*0.1);bot.score+=2;
         const i=foods.indexOf(f);if(i!==-1){foods.splice(i,1);foods.push(createFood());}
     });
 
     // Eat entities
     all.forEach(e=>{
         if(!e.alive||dist(bot,e)>=bot.size||e.size>=bot.size*CONFIG.eatSizeRatio)return;
-        bot.size+=e.size*0.3;bot.score+=Math.floor(e.size*10);e.alive=false;
+        bot.size=Math.min(CONFIG.maxBotSize, bot.size+e.size*0.3);bot.score+=Math.floor(e.size*10);e.alive=false;
         if(e.isBot){setTimeout(()=>{const nb=createBot(0);bots[nb.id]=nb;delete bots[e.id];},5000);}
         else{io.to(e.id).emit('killedByBot',{killerName:bot.name});}
     });
@@ -136,7 +139,7 @@ function gameTick(){
     updateWebs();
     const botsArr=Object.values(bots).filter(b=>b.alive).map(b=>({id:b.id,name:b.name,x:b.x,y:b.y,size:b.size,color:b.color,score:b.score,isBot:true}));
     const playersArr=Object.values(players).filter(p=>p.alive).map(p=>({id:p.id,name:p.name,x:p.x,y:p.y,size:p.size,color:p.color,score:p.score}));
-    io.emit('tick',{players:playersArr,bots:botsArr,webs:webs.map(w=>({id:w.id,x:w.x,y:w.y,color:w.color,size:w.size,charged:w.charged}))});
+    io.emit('tick',{players:playersArr,bots:botsArr,webs:webs.map(w=>({id:w.id,ownerId:w.ownerId,x:w.x,y:w.y,color:w.color,size:w.size,charged:w.charged}))});
 }
 setInterval(gameTick,CONFIG.tickRate);
 
@@ -153,11 +156,13 @@ io.on('connection',(socket)=>{
         const p=players[socket.id];if(!p||!p.alive)return;
         p.x=clamp(data.x,p.size,CONFIG.worldSize-p.size);
         p.y=clamp(data.y,p.size,CONFIG.worldSize-p.size);
-        p.size=data.size;p.score=data.score;p.vx=data.vx||0;p.vy=data.vy||0;
+        p.size=Math.min(CONFIG.maxPlayerSize, data.size);p.score=data.score;p.vx=data.vx||0;p.vy=data.vy||0;
     });
 
     socket.on('webShot',(data)=>{
         const p=players[socket.id];if(!p||!p.alive)return;
+        // Performans: Max web limiti
+        if(webs.length >= CONFIG.maxWebCount) return;
         const angle=data.angle,charged=data.charged||false,spd=charged?CONFIG.webSpeed*0.7:CONFIG.webSpeed;
         const offsets=data.triple?[0,0.25,-0.25]:[0];
         offsets.forEach((off,i)=>{
