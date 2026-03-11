@@ -55,7 +55,8 @@ body{background:#0a0a0f;font-family:'Rajdhani',sans-serif;overflow:hidden;width:
 #playBtn,#playBtnLoggedIn{background:linear-gradient(135deg,#9600ff,#00e5a0);border:none;border-radius:8px;padding:16px 60px;color:#fff;font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:4px;cursor:pointer;transition:transform .2s,box-shadow .2s;box-shadow:0 4px 30px rgba(150,0,255,.4)}
 #playBtn:hover,#playBtnLoggedIn:hover{transform:scale(1.05);box-shadow:0 8px 40px rgba(150,0,255,.6)}
 .howto{display:flex;flex-direction:column;gap:6px;text-align:center;color:rgba(255,255,255,.4);font-size:14px;margin-top:10px}
-#gameCanvas{position:fixed;inset:0;width:100%;height:100%}
+#gameCanvas{position:fixed;inset:0;width:100%;height:100%;cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%2300e5a0' stroke-width='2' opacity='0.8'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%239600ff'/%3E%3Cline x1='16' y1='2' x2='16' y2='8' stroke='%2300e5a0' stroke-width='2'/%3E%3Cline x1='16' y1='24' x2='16' y2='30' stroke='%2300e5a0' stroke-width='2'/%3E%3Cline x1='2' y1='16' x2='8' y2='16' stroke='%2300e5a0' stroke-width='2'/%3E%3Cline x1='24' y1='16' x2='30' y2='16' stroke='%2300e5a0' stroke-width='2'/%3E%3C/svg%3E") 16 16, crosshair}
+#gameContainer{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%2300e5a0' stroke-width='2' opacity='0.8'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%239600ff'/%3E%3Cline x1='16' y1='2' x2='16' y2='8' stroke='%2300e5a0' stroke-width='2'/%3E%3Cline x1='16' y1='24' x2='16' y2='30' stroke='%2300e5a0' stroke-width='2'/%3E%3Cline x1='2' y1='16' x2='8' y2='16' stroke='%2300e5a0' stroke-width='2'/%3E%3Cline x1='24' y1='16' x2='30' y2='16' stroke='%2300e5a0' stroke-width='2'/%3E%3C/svg%3E") 16 16, crosshair}
 #hud{position:fixed;inset:0;pointer-events:none;z-index:10}
 #scoreBox{position:absolute;top:20px;left:20px;background:rgba(0,0,0,.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 20px;display:flex;flex-direction:column;gap:4px}
 #playerNameHud{color:#00e5a0;font-size:18px;font-weight:700;letter-spacing:1px}
@@ -1399,9 +1400,9 @@ function lighten(hex){
 }
 
 function spawnParticles(x,y,color,count){
-    if(particles.length>100) particles.length=80; // max 100 parçacık
-    const n=Math.min(count,6);
-    for(let i=0;i<n;i++) particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color,size:Math.random()*4+2});
+    if(particles.length>50) return; // Çok fazla particle varsa ekleme
+    const n=Math.min(count,4);
+    for(let i=0;i<n;i++) particles.push({x,y,vx:(Math.random()-.5)*5,vy:(Math.random()-.5)*5,life:1,color,size:Math.random()*3+1});
 }
 
 function createPlayer(name){const c=typeof selectedColor!=='undefined'?selectedColor:'#00e5a0';return{x:CONFIG.worldSize/2,y:CONFIG.worldSize/2,size:30,color:c,name:name||'Sen',speed:4,isPlayer:true,alive:true,score:0}}
@@ -2080,9 +2081,14 @@ function update(){
         return true;
     });
 
-    // Performans: Particle güncelleme - tutarlı değerler
-    particles=particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.life-=0.04;p.vx*=0.92;p.vy*=0.92;return p.life>0});
-    bots.forEach(bot=>{if(!bot.alive)return;foods.forEach((food,i)=>{if(dist(bot,food)<bot.size){bot.size+=0.3;bot.score+=5;foods[i]=createFood()}})});
+    // Performans: Particle güncelleme - limit düşürüldü
+    if(particles.length > 60) particles.length = 50;
+    particles=particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.life-=0.05;p.vx*=0.9;p.vy*=0.9;return p.life>0});
+    
+    // Bot food yeme - sadece offline modda
+    if(!socket || !socket.connected) {
+        bots.forEach(bot=>{if(!bot.alive)return;foods.forEach((food,i)=>{if(dist(bot,food)<bot.size){bot.size+=0.3;bot.score+=5;foods[i]=createFood()}})});
+    }
 
     const pEvo=getEvolution(player.size);updateTraps();updateAbilityHud();
     if(DOM.sizeDisplay) DOM.sizeDisplay.textContent=`${pEvo.name} • Boyut: ${Math.floor(player.size)}`;
@@ -2180,7 +2186,7 @@ function updateBuffHud(){
 
 // Performans: Leaderboard güncelleme throttle
 let lastLbUpdate = 0;
-const LB_UPDATE_INTERVAL = 200; // 200ms'de bir güncelle
+const LB_UPDATE_INTERVAL = 500; // 500ms'de bir güncelle (performans için)
 
 function updateLeaderboard(){
     const now = Date.now();
