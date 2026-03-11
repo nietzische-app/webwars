@@ -194,7 +194,12 @@ auth.onAuthStateChanged(user => {
         document.getElementById('userPanel').style.display = 'flex'; loadLeaderboard();
         document.getElementById('userAvatar').src = user.photoURL || '';
         document.getElementById('userName').textContent = user.displayName || user.email;
-        document.getElementById('playerName').value = user.displayName ? user.displayName.split(' ')[0] : '';
+        // Her iki input'a da ismi yaz
+        const displayName = user.displayName ? user.displayName.split(' ')[0] : '';
+        const nameInput1 = document.getElementById('playerName');
+        const nameInput2 = document.getElementById('playerNameLoggedIn');
+        if(nameInput1) nameInput1.value = displayName;
+        if(nameInput2) nameInput2.value = displayName;
         document.getElementById('loginPanel').style.display = 'none';
         loadUserStats();
     } else {
@@ -924,8 +929,8 @@ function startGame() {
           </div>
           <button onclick="logout()" style="background:rgba(255,0,0,0.2);border:1px solid rgba(255,0,0,0.3);border-radius:6px;padding:4px 10px;color:#ff6666;font-size:11px;cursor:pointer;flex-shrink:0;" data-i18n="logout">Çıkış</button>
         </div>
-        <input type="text" id="playerName" placeholder="Adını gir..." maxlength="15" style="width:100%;box-sizing:border-box;">
-        <button id="playBtn" onclick="startGame()" data-i18n="play" style="width:100%;">OYNA</button>
+        <input type="text" id="playerNameLoggedIn" placeholder="Adını gir..." maxlength="15" style="width:100%;box-sizing:border-box;">
+        <button id="playBtnLoggedIn" onclick="startGame()" data-i18n="play" style="width:100%;">OYNA</button>
       </div>
 
       <!-- Footer -->
@@ -1423,7 +1428,11 @@ function cleanupModeHUDs(){
 }
 
 function startGame_original(){
-    const name=document.getElementById('playerName').value.trim()||'Oyuncu';
+    // Her iki input'tan da isim al (hangisi doluysa)
+    const nameInput1 = document.getElementById('playerName');
+    const nameInput2 = document.getElementById('playerNameLoggedIn');
+    const name = (nameInput1 && nameInput1.value.trim()) || (nameInput2 && nameInput2.value.trim()) || 'Oyuncu';
+    
     document.getElementById('menu').style.display='none';
     document.getElementById('gameContainer').style.display='block';
     document.getElementById('gameOver').style.display='none';
@@ -2487,10 +2496,14 @@ window.addEventListener('keyup',e=>{
 });
 window.addEventListener('resize',()=>{if(canvas){canvas.width=window.innerWidth;canvas.height=window.innerHeight}});
 
-// playerName input için Enter tuşu - sadece bu input için
+// playerName inputları için Enter tuşu
 const playerNameInput = document.getElementById('playerName');
+const playerNameInputLoggedIn = document.getElementById('playerNameLoggedIn');
 if(playerNameInput) {
     playerNameInput.addEventListener('keydown',e=>{if(e.key==='Enter')startGame()});
+}
+if(playerNameInputLoggedIn) {
+    playerNameInputLoggedIn.addEventListener('keydown',e=>{if(e.key==='Enter')startGame()});
 }
 
 function toggleFullscreen(){
