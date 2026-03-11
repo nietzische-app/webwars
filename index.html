@@ -46,12 +46,12 @@ body{background:#0a0a0f;font-family:'Rajdhani',sans-serif;overflow:hidden;width:
   85%{text-shadow:0 0 15px #00e5a0,0 0 35px #00e5a0,0 0 70px #00e5a0,0 0 120px #00e5a0;opacity:1}
 }
 .subtitle{font-size:18px;color:rgba(255,255,255,.6);letter-spacing:2px;text-transform:uppercase}
-#playerName{background:rgba(255,255,255,.05);border:2px solid rgba(150,0,255,.5);border-radius:8px;padding:14px 24px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:600;text-align:center;width:280px;outline:none;transition:border-color .3s}
-#playerName:focus{border-color:#9600ff}
+#playerName,#playerNameLoggedIn{background:rgba(255,255,255,.05);border:2px solid rgba(150,0,255,.5);border-radius:8px;padding:14px 24px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:600;text-align:center;width:100%;box-sizing:border-box;outline:none;transition:border-color .3s}
+#playerName:focus,#playerNameLoggedIn:focus{border-color:#9600ff}
 .skinBtn{width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:transform 0.2s,border-color 0.2s;}
 .skinBtn:hover{transform:scale(1.2);}
 .skinBtn.active{border-color:#fff;transform:scale(1.15);}
-#playerName::placeholder{color:rgba(255,255,255,.3)}
+#playerName::placeholder,#playerNameLoggedIn::placeholder{color:rgba(255,255,255,.3)}
 #playBtn,#playBtnLoggedIn{background:linear-gradient(135deg,#9600ff,#00e5a0);border:none;border-radius:8px;padding:16px 60px;color:#fff;font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:4px;cursor:pointer;transition:transform .2s,box-shadow .2s;box-shadow:0 4px 30px rgba(150,0,255,.4)}
 #playBtn:hover,#playBtnLoggedIn:hover{transform:scale(1.05);box-shadow:0 8px 40px rgba(150,0,255,.6)}
 .howto{display:flex;flex-direction:column;gap:6px;text-align:center;color:rgba(255,255,255,.4);font-size:14px;margin-top:10px}
@@ -902,7 +902,7 @@ function startGame() {
           <span style="color:rgba(255,255,255,0.3);font-size:12px;" data-i18n="orGuest">veya</span>
           <div style="flex:1;height:1px;background:rgba(255,255,255,0.1)"></div>
         </div>
-        <input type="text" id="playerName" placeholder="Misafir olarak devam et..." maxlength="15" style="width:100%;box-sizing:border-box;">
+        <input type="text" id="playerName" placeholder="Misafir olarak devam et..." maxlength="15">
                 <div id="skinPicker" style="margin-top:8px;width:100%;">
           <div style="color:rgba(255,255,255,0.5);font-size:11px;letter-spacing:1px;margin-bottom:6px;text-align:center;font-family:'Rajdhani',sans-serif;">🎨 RENK SEÇ</div>
           <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
@@ -929,7 +929,7 @@ function startGame() {
           </div>
           <button onclick="logout()" style="background:rgba(255,0,0,0.2);border:1px solid rgba(255,0,0,0.3);border-radius:6px;padding:4px 10px;color:#ff6666;font-size:11px;cursor:pointer;flex-shrink:0;" data-i18n="logout">Çıkış</button>
         </div>
-        <input type="text" id="playerNameLoggedIn" placeholder="Adını gir..." maxlength="15" style="width:100%;box-sizing:border-box;">
+        <input type="text" id="playerNameLoggedIn" placeholder="Adını gir..." maxlength="15">
         <button id="playBtnLoggedIn" onclick="startGame()" data-i18n="play" style="width:100%;">OYNA</button>
       </div>
 
@@ -1838,8 +1838,7 @@ function buildBestScoreBoard() {
 function update(){
     if(!player||!player.alive)return;
     if(player.size > 200) player.size = 200; // hard cap
-    // Buff sayısını kontrol et
-    if(!socket||!socket.connected){ while(buffItems.filter(b=>!b.eaten).length < CONFIG.buffCount){ buffItems.push(createBuffItem()); } }
+    
     // Challenge istatistik toplama
     if(window.activeGameMode==='challenge' && window.challengeStats){
         window.challengeStats.surviveTime=(Date.now()-window.challengeStats.startTime)/1000;
