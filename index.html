@@ -20,9 +20,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#0a0a0f;font-family:'Rajdhani',sans-serif;overflow:hidden;width:100vw;height:100vh}
-#menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:100}
-.menu-bg{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,#1a0a2e 0%,#0a0a0f 70%)}
-.menu-bg::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle at 20% 20%,rgba(120,0,255,.15) 0%,transparent 40%),radial-gradient(circle at 80% 80%,rgba(0,200,150,.1) 0%,transparent 40%);animation:bgPulse 4s ease-in-out infinite alternate}
+#menu{position:fixed;inset:0;display:flex;align-items:flex-start;justify-content:center;z-index:100;overflow-y:auto}
+.menu-bg{position:fixed;inset:0;background:radial-gradient(ellipse at 50% 40%,#1a0a2e 0%,#0a0a0f 70%)}
+.menu-bg::before{content:'';position:fixed;inset:0;background-image:radial-gradient(circle at 20% 20%,rgba(120,0,255,.15) 0%,transparent 40%),radial-gradient(circle at 80% 80%,rgba(0,200,150,.1) 0%,transparent 40%);animation:bgPulse 4s ease-in-out infinite alternate}
 @keyframes bgPulse{from{opacity:.5}to{opacity:1}}
 .menu-content{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:20px}
 .title{font-family:'Bebas Neue',sans-serif;font-size:58px;color:#fff;line-height:1;letter-spacing:8px;animation:neonFlicker 4s infinite}
@@ -303,7 +303,12 @@ if(typeof io !== 'undefined') {
             if(!player || !player.alive) return;
             // Diğer oyuncular
             data.players.forEach(p => {
-                if(p.id === socket.id) return; // kendimiz
+                if(p.id === socket.id) {
+                    // Server-authoritative size/score sync
+                    if(typeof p.size === 'number') player.size = lerp(player.size, p.size, 0.3);
+                    if(typeof p.score === 'number') player.score = p.score;
+                    return;
+                }
                 if(!otherPlayers[p.id]) otherPlayers[p.id] = {...p, trail:[]};
                 else { otherPlayers[p.id].x=p.x; otherPlayers[p.id].y=p.y; otherPlayers[p.id].size=p.size; otherPlayers[p.id].score=p.score; otherPlayers[p.id].alive=true; }
             });
@@ -408,7 +413,7 @@ function updatePingDisplay(ping) {
 setInterval(measurePing, 2000);
 
 function emitJoin(name) { if(socket && player) socket.emit('join', {name, color: player.color}); }
-function emitUpdate(x,y,size,score,vx,vy) { if(socket && (!emitUpdate.last || Date.now()-emitUpdate.last>50)) { socket.emit('move',{x,y,size,score,vx:vx||0,vy:vy||0}); emitUpdate.last=Date.now(); } }
+function emitUpdate(x,y,vx,vy) { if(socket && (!emitUpdate.last || Date.now()-emitUpdate.last>50)) { socket.emit('move',{x,y,vx:vx||0,vy:vy||0}); emitUpdate.last=Date.now(); } }
 function emitWebShot(data) { if(socket) socket.emit('webShot',data); }
 function emitFoodEaten(id) { if(socket) socket.emit('foodEaten',id); }
 function emitBuffEaten(id) { if(socket) socket.emit('ateBuff',id); }
@@ -899,7 +904,7 @@ function startGame() {
   </div>
 
   <!-- 3-Column Layout -->
-  <div id="menuGrid" style="position:relative;z-index:1;display:grid;grid-template-columns:1fr 300px 1fr;gap:24px;width:100%;max-width:1060px;margin:0 auto;padding:16px;align-items:start;min-height:100vh;padding-top:60px;box-sizing:border-box;">
+  <div id="menuGrid" style="position:relative;z-index:1;display:grid;grid-template-columns:1fr 300px 1fr;gap:24px;width:100%;max-width:1060px;margin:0 auto;padding:16px;align-items:start;padding-top:60px;padding-bottom:40px;box-sizing:border-box;">
 
     <!-- SOL KOLON: Nasıl Oynanır + Evrim -->
     <div id="menuLeft" style="display:flex;flex-direction:column;gap:20px;">
@@ -1754,7 +1759,7 @@ function createBot(i){
     return{x:randInt(200,CONFIG.worldSize-200),y:randInt(200,CONFIG.worldSize-200),size:randInt(20,45),color:COLORS[i%COLORS.length],name:names[i%names.length],speed:randFloat(1.8,3),isPlayer:false,alive:true,score:randInt(0,300),targetX:randInt(100,CONFIG.worldSize-100),targetY:randInt(100,CONFIG.worldSize-100),lastWeb:0,webCooldown:randInt(1500,4000),wanderTimer:0}
 }
 
-function createFood(){return{x:randInt(50,CONFIG.worldSize-50),y:randInt(50,CONFIG.worldSize-50),size:randInt(5,12),color:COLORS[randInt(0,COLORS.length-1)],pulse:Math.random()*Math.PI*2}}
+function createFood(){return{id:Math.random().toString(36).substr(2,9),x:randInt(50,CONFIG.worldSize-50),y:randInt(50,CONFIG.worldSize-50),size:randInt(5,12),color:COLORS[randInt(0,COLORS.length-1)],pulse:Math.random()*Math.PI*2}}
 
 function createBuffItem(){
     const isMine = Math.random() < 0.25; // %25 mayın
@@ -2208,7 +2213,7 @@ function update(){
     if(keys.w)player.y-=spd;if(keys.s)player.y+=spd;if(keys.a)player.x-=spd;if(keys.d)player.x+=spd;
     player.x=clamp(player.x,player.size,CONFIG.worldSize-player.size);
     player.y=clamp(player.y,player.size,CONFIG.worldSize-player.size);
-    emitUpdate(player.x,player.y,player.size,player.score);
+    emitUpdate(player.x,player.y);
     camera.x=lerp(camera.x,player.x-canvas.width/2,0.08);
     camera.y=lerp(camera.y,player.y-canvas.height/2,0.08);
     activeBuffs=activeBuffs.filter(b=>b.endTime>Date.now());
@@ -2227,6 +2232,9 @@ function update(){
         if(!food) continue;
         
         if(dist(player, food) < player.size) {
+            // Server'a bildir (server size/score'u kendisi artıracak)
+            if(socket && socket.connected && food.id) socket.emit('ateFood', food.id);
+            // Client-side optimistic update (offline mod + anlık hissiyat)
             player.size = Math.min(200, player.size + 0.5);
             player.score += 5;
             foods[i] = createFood();
@@ -2246,7 +2254,9 @@ function update(){
         
         if(dist(player, buff) < player.size + buff.size) {
             buff.eaten = true;
-            
+            // Server'a bildir
+            if(socket && socket.connected && buff.id) socket.emit('ateBuff', buff.id);
+
             if(buff.isMine) {
                 player.size = Math.max(20, player.size * 0.7);
                 showMineNotification();

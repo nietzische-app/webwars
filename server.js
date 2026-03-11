@@ -31,6 +31,19 @@ const BOT_NAMES = ['Örümcek','Zehir','Karanlık','Ağ Ustası','Gölge','Avcı
 
 let players = {}, bots = {}, webs = [], foods = [], buffItems = [], rooms = {};
 
+// Anti-cheat: Rate limit ayarları (event başına saniyede max)
+const RATE_LIMITS = { move: 25, webShot: 5, ateFood: 30, ateBuff: 5, atePlayer: 5, revived: 2 };
+
+function checkRate(p, event) {
+    if (!p._rates) p._rates = {};
+    if (!p._rateReset || Date.now() - p._rateReset > 1000) {
+        p._rates = {};
+        p._rateReset = Date.now();
+    }
+    p._rates[event] = (p._rates[event] || 0) + 1;
+    return p._rates[event] <= (RATE_LIMITS[event] || 10);
+}
+
 function randInt(a,b){return Math.floor(Math.random()*(b-a+1))+a}
 function randFloat(a,b){return Math.random()*(b-a)+a}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -152,23 +165,39 @@ io.on('connection',(socket)=>{
     });
 
     socket.on('join',(data)=>{
-        players[socket.id]={id:socket.id,name:data.name||'Oyuncu',x:CONFIG.worldSize/2+randInt(-300,300),y:CONFIG.worldSize/2+randInt(-300,300),size:30,color:data.color||COLORS[randInt(0,COLORS.length-1)],score:0,alive:true,vx:0,vy:0};
+        const name = (typeof data.name === 'string' ? data.name.slice(0, 15) : 'Oyuncu') || 'Oyuncu';
+        players[socket.id]={id:socket.id,name,x:CONFIG.worldSize/2+randInt(-300,300),y:CONFIG.worldSize/2+randInt(-300,300),size:30,color:data.color||COLORS[randInt(0,COLORS.length-1)],score:0,alive:true,vx:0,vy:0,
+            lastWebTime:0, deathTime:0, reviveUsed:false};
         socket.emit('init',{id:socket.id,player:players[socket.id],foods,buffItems,bots:Object.values(bots)});
         io.emit('onlineCount',Object.keys(players).length);
     });
 
     socket.on('move',(data)=>{
         const p=players[socket.id];if(!p||!p.alive)return;
-        p.x=clamp(data.x,p.size,CONFIG.worldSize-p.size);
-        p.y=clamp(data.y,p.size,CONFIG.worldSize-p.size);
-        p.size=Math.min(CONFIG.maxPlayerSize, data.size);p.score=data.score;p.vx=data.vx||0;p.vy=data.vy||0;
+        if(!checkRate(p,'move'))return;
+        const nx=clamp(Number(data.x)||0,p.size,CONFIG.worldSize-p.size);
+        const ny=clamp(Number(data.y)||0,p.size,CONFIG.worldSize-p.size);
+        // Anti-cheat: teleport kontrolü (max ~600px tolerans, speed buff + latency)
+        const moved=Math.hypot(nx-p.x,ny-p.y);
+        if(moved>600){
+            // Teleport girişimi — pozisyonu düzeltme, sadece reddet
+            return;
+        }
+        p.x=nx;p.y=ny;
+        p.vx=Number(data.vx)||0;p.vy=Number(data.vy)||0;
+        // size ve score artık server-authoritative, client'tan kabul edilmiyor
     });
 
     socket.on('webShot',(data)=>{
         const p=players[socket.id];if(!p||!p.alive)return;
+        if(!checkRate(p,'webShot'))return;
+        // Anti-cheat: cooldown kontrolü (200ms tolerans latency için)
+        const now=Date.now();
+        if(now-(p.lastWebTime||0)<CONFIG.webCooldown-200)return;
         // Performans: Max web limiti
         if(webs.length >= CONFIG.maxWebCount) return;
-        const angle=data.angle,charged=data.charged||false,spd=charged?CONFIG.webSpeed*0.7:CONFIG.webSpeed;
+        p.lastWebTime=now;
+        const angle=Number(data.angle)||0,charged=!!data.charged,spd=charged?CONFIG.webSpeed*0.7:CONFIG.webSpeed;
         const offsets=data.triple?[0,0.25,-0.25]:[0];
         offsets.forEach((off,i)=>{
             setTimeout(()=>{
@@ -178,23 +207,60 @@ io.on('connection',(socket)=>{
     });
 
     socket.on('ateFood',(foodId)=>{
+        const p=players[socket.id];if(!p||!p.alive)return;
+        if(!checkRate(p,'ateFood'))return;
         const i=foods.findIndex(f=>f.id===foodId);
-        if(i!==-1){foods.splice(i,1);const nf=createFood();foods.push(nf);io.emit('foodUpdate',{removed:foodId,added:nf});}
+        if(i===-1)return;
+        const food=foods[i];
+        // Anti-cheat: proximity check
+        if(dist(p,food)>p.size+food.size+30)return;
+        // Server-side size/score artışı
+        p.size=Math.min(CONFIG.maxPlayerSize,p.size+0.5);
+        p.score+=5;
+        foods.splice(i,1);const nf=createFood();foods.push(nf);
+        io.emit('foodUpdate',{removed:foodId,added:nf});
     });
 
     socket.on('ateBuff',(buffId)=>{
+        const p=players[socket.id];if(!p||!p.alive)return;
+        if(!checkRate(p,'ateBuff'))return;
         const i=buffItems.findIndex(b=>b.id===buffId);
-        if(i!==-1){const type=buffItems[i].type;buffItems.splice(i,1);const nb=createBuff();buffItems.push(nb);io.emit('buffUpdate',{removed:buffId,added:nb});socket.emit('buffGranted',{type});}
+        if(i===-1)return;
+        const buff=buffItems[i];
+        // Anti-cheat: proximity check
+        if(dist(p,buff)>p.size+buff.size+30)return;
+        const type=buff.type;
+        buffItems.splice(i,1);const nb=createBuff();buffItems.push(nb);
+        io.emit('buffUpdate',{removed:buffId,added:nb});
+        socket.emit('buffGranted',{type});
     });
 
     socket.on('atePlayer',(targetId)=>{
         const p=players[socket.id],t=players[targetId];
-        if(!p||!t||!t.alive)return;
-        if(p.size>=t.size*CONFIG.eatSizeRatio){t.alive=false;p.size+=t.size*0.3;p.score+=Math.floor(t.size*10);io.to(targetId).emit('killedByPlayer',{killerName:p.name});}
+        if(!p||!p.alive||!t||!t.alive)return;
+        if(!checkRate(p,'atePlayer'))return;
+        // Anti-cheat: proximity check
+        if(dist(p,t)>p.size+10)return;
+        if(p.size>=t.size*CONFIG.eatSizeRatio){
+            t.alive=false;
+            p.size=Math.min(CONFIG.maxPlayerSize,p.size+t.size*0.3);
+            p.score+=Math.floor(t.size*10);
+            io.to(targetId).emit('killedByPlayer',{killerName:p.name});
+        }
     });
 
-    socket.on('died',()=>{if(players[socket.id])players[socket.id].alive=false;});
-    socket.on('revived',()=>{const p=players[socket.id];if(p){p.alive=true;p.size=Math.max(20,p.size*0.5);}});
+    socket.on('died',()=>{
+        const p=players[socket.id];
+        if(p){p.alive=false;p.deathTime=Date.now();}
+    });
+    socket.on('revived',()=>{
+        const p=players[socket.id];if(!p)return;
+        if(!checkRate(p,'revived'))return;
+        // Anti-cheat: en az 3 saniye bekleme + tek revive hakkı
+        if(!p.deathTime||Date.now()-p.deathTime<3000)return;
+        if(p.reviveUsed)return;
+        p.alive=true;p.size=Math.max(20,p.size*0.5);p.reviveUsed=true;
+    });
 
     socket.on('createRoom',({code})=>{rooms[code]={code,players:[socket.id]};socket.join('room_'+code);socket.emit('roomUpdate',{code,count:1});});
     socket.on('joinRoom',({code})=>{
