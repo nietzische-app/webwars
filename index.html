@@ -307,14 +307,18 @@ if(typeof io !== 'undefined') {
                 if(!otherPlayers[p.id]) otherPlayers[p.id] = {...p, trail:[]};
                 else { otherPlayers[p.id].x=p.x; otherPlayers[p.id].y=p.y; otherPlayers[p.id].size=p.size; otherPlayers[p.id].score=p.score; otherPlayers[p.id].alive=true; }
             });
-            // Botlar server'dan geliyor - AMA alive durumunu KORUYORUZ
+            // Botlar server'dan geliyor - LAG COMPENSATION
             if(data.bots) {
                 data.bots.forEach(sb => {
                     const existing = bots.find(b=>b.id===sb.id);
                     if(existing){
                         existing.x=sb.x; 
                         existing.y=sb.y; 
-                        existing.size=sb.size; 
+                        // LAG COMPENSATION: Eğer lokal size daha küçükse (vurduk), lokal değeri koru
+                        // Server size'ı sadece büyükse veya çok farklıysa güncelle
+                        if(!existing._localHitTime || Date.now() - existing._localHitTime > 500) {
+                            existing.size = sb.size;
+                        }
                         existing.score=sb.score;
                     } else { 
                         bots.push({...sb, alive:true, vx:0, vy:0}); 
@@ -663,6 +667,7 @@ window.addEventListener('load', () => {
         if(serverStatus) serverStatus.style.display='flex';
         if(typeof applyLang === 'function') applyLang();
         if(typeof checkCookie === 'function') checkCookie();
+        if(typeof updateSkinPreview === 'function') updateSkinPreview();
         setTimeout(() => updateOnlineCount(Math.floor(Math.random()*8)+3), 1000);
     } catch(e) { console.log('Load event error:', e); }
 });
@@ -918,6 +923,22 @@ function startGame() {
       <h1 class="title" style="font-size:58px;">WEB<span>WARS</span></h1>
       <p class="subtitle" data-i18n="subtitle" style="font-size:12px;margin:0;">🕸️ Ağ at • Düşmanları küçült • Hükmet</p>
 
+      <!-- HARİTA SEÇİCİ -->
+      <div id="mapSelector" style="display:flex;gap:8px;width:100%;justify-content:center;">
+        <div class="mapBtn active" data-map="neon" onclick="setMap('neon')" style="flex:1;max-width:100px;">
+          <span style="font-size:20px;">🌃</span>
+          <div style="font-size:11px;font-weight:600;">Neon</div>
+        </div>
+        <div class="mapBtn" data-map="space" onclick="setMap('space')" style="flex:1;max-width:100px;">
+          <span style="font-size:20px;">🌌</span>
+          <div style="font-size:11px;font-weight:600;">Uzay</div>
+        </div>
+        <div class="mapBtn" data-map="forest" onclick="setMap('forest')" style="flex:1;max-width:100px;">
+          <span style="font-size:20px;">🌲</span>
+          <div style="font-size:11px;font-weight:600;">Orman</div>
+        </div>
+      </div>
+
       <!-- MOD SEÇİCİ -->
       <div id="modeSelector" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;">
         <div class="modeBtn active" onclick="selectMode('normal')" id="mode-normal">
@@ -986,19 +1007,57 @@ function startGame() {
           <div style="flex:1;height:1px;background:rgba(255,255,255,0.1)"></div>
         </div>
         <input type="text" id="playerName" placeholder="Misafir olarak devam et..." maxlength="15">
-                <div id="skinPicker" style="margin-top:8px;width:100%;">
-          <div style="color:rgba(255,255,255,0.5);font-size:11px;letter-spacing:1px;margin-bottom:6px;text-align:center;font-family:'Rajdhani',sans-serif;">🎨 RENK SEÇ</div>
-          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-            <div class="skinBtn" data-color="#00e5a0" style="background:#00e5a0;" onclick="selectSkin('#00e5a0')"></div>
-            <div class="skinBtn" data-color="#9600ff" style="background:#9600ff;" onclick="selectSkin('#9600ff')"></div>
-            <div class="skinBtn" data-color="#ff3366" style="background:#ff3366;" onclick="selectSkin('#ff3366')"></div>
-            <div class="skinBtn" data-color="#ffaa00" style="background:#ffaa00;" onclick="selectSkin('#ffaa00')"></div>
-            <div class="skinBtn" data-color="#00aaff" style="background:#00aaff;" onclick="selectSkin('#00aaff')"></div>
-            <div class="skinBtn" data-color="#ff6600" style="background:#ff6600;" onclick="selectSkin('#ff6600')"></div>
-            <div class="skinBtn" data-color="#ffd700" style="background:#ffd700;" onclick="selectSkin('#ffd700')"></div>
-            <div class="skinBtn" data-color="#ff00ff" style="background:#ff00ff;" onclick="selectSkin('#ff00ff')"></div>
+        
+        <!-- SKİN SEÇİCİ -->
+        <div id="skinSelector" style="width:100%;margin-top:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="color:rgba(255,255,255,0.5);font-size:11px;letter-spacing:1px;font-family:'Rajdhani',sans-serif;">🎨 KARAKTER SEÇ</span>
+            <div id="skinPreview" style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;"></div>
+          </div>
+          
+          <!-- Kategoriler -->
+          <div style="display:flex;gap:4px;margin-bottom:8px;">
+            <button class="skinTabBtn active" data-tab="colors" onclick="showSkinTab('colors')" style="flex:1;padding:4px;font-size:10px;background:rgba(0,229,160,0.2);border:1px solid rgba(0,229,160,0.4);border-radius:6px;color:#fff;cursor:pointer;">Renkler</button>
+            <button class="skinTabBtn" data-tab="animals" onclick="showSkinTab('animals')" style="flex:1;padding:4px;font-size:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;cursor:pointer;">Hayvanlar</button>
+            <button class="skinTabBtn" data-tab="elements" onclick="showSkinTab('elements')" style="flex:1;padding:4px;font-size:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;cursor:pointer;">Elementler</button>
+            <button class="skinTabBtn" data-tab="special" onclick="showSkinTab('special')" style="flex:1;padding:4px;font-size:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;cursor:pointer;">Özel</button>
+          </div>
+          
+          <!-- Renkler -->
+          <div id="skinTab-colors" class="skinTab" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">
+            <div class="skinItem active" data-skin="default" onclick="setSkin('default')" style="width:32px;height:32px;border-radius:50%;background:#00e5a0;cursor:pointer;border:2px solid transparent;transition:all 0.2s;"></div>
+            <div class="skinItem" data-skin="purple" onclick="setSkin('purple')" style="width:32px;height:32px;border-radius:50%;background:#9600ff;cursor:pointer;border:2px solid transparent;transition:all 0.2s;"></div>
+            <div class="skinItem" data-skin="red" onclick="setSkin('red')" style="width:32px;height:32px;border-radius:50%;background:#ff3366;cursor:pointer;border:2px solid transparent;transition:all 0.2s;"></div>
+            <div class="skinItem" data-skin="orange" onclick="setSkin('orange')" style="width:32px;height:32px;border-radius:50%;background:#ff6600;cursor:pointer;border:2px solid transparent;transition:all 0.2s;"></div>
+            <div class="skinItem" data-skin="yellow" onclick="setSkin('yellow')" style="width:32px;height:32px;border-radius:50%;background:#ffaa00;cursor:pointer;border:2px solid transparent;transition:all 0.2s;"></div>
+            <div class="skinItem" data-skin="blue" onclick="setSkin('blue')" style="width:32px;height:32px;border-radius:50%;background:#00aaff;cursor:pointer;border:2px solid transparent;transition:all 0.2s;"></div>
+          </div>
+          
+          <!-- Hayvanlar -->
+          <div id="skinTab-animals" class="skinTab" style="display:none;gap:6px;flex-wrap:wrap;justify-content:center;">
+            <div class="skinItem" data-skin="spider" onclick="setSkin('spider')" style="width:40px;height:40px;border-radius:8px;background:rgba(0,0,0,0.4);cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:22px;">🕷️</div>
+            <div class="skinItem" data-skin="scorpion" onclick="setSkin('scorpion')" style="width:40px;height:40px;border-radius:8px;background:rgba(0,0,0,0.4);cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:22px;">🦂</div>
+            <div class="skinItem" data-skin="octopus" onclick="setSkin('octopus')" style="width:40px;height:40px;border-radius:8px;background:rgba(0,0,0,0.4);cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:22px;">🐙</div>
+            <div class="skinItem" data-skin="snake" onclick="setSkin('snake')" style="width:40px;height:40px;border-radius:8px;background:rgba(0,0,0,0.4);cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:22px;">🐍</div>
+          </div>
+          
+          <!-- Elementler -->
+          <div id="skinTab-elements" class="skinTab" style="display:none;gap:6px;flex-wrap:wrap;justify-content:center;">
+            <div class="skinItem" data-skin="fire" onclick="setSkin('fire')" style="width:40px;height:40px;border-radius:8px;background:linear-gradient(135deg,#ff0000,#ff6600);cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:22px;">🔥</div>
+            <div class="skinItem" data-skin="ice" onclick="setSkin('ice')" style="width:40px;height:40px;border-radius:8px;background:linear-gradient(135deg,#00ffff,#0088ff);cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:22px;">❄️</div>
+            <div class="skinItem" data-skin="electric" onclick="setSkin('electric')" style="width:40px;height:40px;border-radius:8px;background:linear-gradient(135deg,#ffff00,#ffaa00);cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:22px;">⚡</div>
+            <div class="skinItem" data-skin="toxic" onclick="setSkin('toxic')" style="width:40px;height:40px;border-radius:8px;background:linear-gradient(135deg,#00ff00,#88ff00);cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:22px;">☠️</div>
+          </div>
+          
+          <!-- Özel -->
+          <div id="skinTab-special" class="skinTab" style="display:none;gap:6px;flex-wrap:wrap;justify-content:center;">
+            <div class="skinItem" data-skin="ghost" onclick="setSkin('ghost')" style="width:40px;height:40px;border-radius:8px;background:rgba(255,255,255,0.2);cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:22px;">👻</div>
+            <div class="skinItem" data-skin="robot" onclick="setSkin('robot')" style="width:40px;height:40px;border-radius:8px;background:rgba(100,100,100,0.4);cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:22px;">🤖</div>
+            <div class="skinItem" data-skin="alien" onclick="setSkin('alien')" style="width:40px;height:40px;border-radius:8px;background:rgba(0,255,136,0.2);cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:22px;">👽</div>
+            <div class="skinItem" data-skin="demon" onclick="setSkin('demon')" style="width:40px;height:40px;border-radius:8px;background:rgba(102,0,0,0.4);cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:22px;">😈</div>
           </div>
         </div>
+        
         <button id="playBtn" onclick="startGame()" data-i18n="play" style="width:100%;">OYNA</button>
       </div>
 
@@ -1052,6 +1111,21 @@ function startGame() {
   </style>
   
   <style>
+/* Map Selector */
+.mapBtn{background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:8px 12px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;transition:all 0.2s;color:#fff;font-family:'Rajdhani',sans-serif;text-align:center;}
+.mapBtn:hover{border-color:rgba(255,255,255,0.4);background:rgba(255,255,255,0.08);transform:scale(1.05);}
+.mapBtn.active{border-color:#00e5a0;background:rgba(0,229,160,0.15);box-shadow:0 0 12px rgba(0,229,160,0.3);}
+.mapBtn[data-map="neon"].active{border-color:#9600ff;background:rgba(150,0,255,0.15);box-shadow:0 0 12px rgba(150,0,255,0.3);}
+.mapBtn[data-map="space"].active{border-color:#00aaff;background:rgba(0,170,255,0.15);box-shadow:0 0 12px rgba(0,170,255,0.3);}
+.mapBtn[data-map="forest"].active{border-color:#00ff66;background:rgba(0,255,102,0.15);box-shadow:0 0 12px rgba(0,255,102,0.3);}
+
+/* Skin Selector */
+.skinItem{transition:all 0.2s;box-shadow:0 0 0 transparent;}
+.skinItem:hover{transform:scale(1.1);border-color:rgba(255,255,255,0.5) !important;}
+.skinItem.active{border-color:#00e5a0 !important;box-shadow:0 0 12px rgba(0,229,160,0.5);}
+.skinTabBtn{transition:all 0.2s;}
+.skinTabBtn:hover{background:rgba(255,255,255,0.1) !important;}
+
 /* Game Mode Selector */
 .modeBtn{background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:all 0.2s;color:#fff;font-family:'Rajdhani',sans-serif;text-align:center;}
 .modeBtn:hover{border-color:rgba(150,0,255,0.5);background:rgba(150,0,255,0.1);transform:translateY(-2px);}
@@ -1245,6 +1319,169 @@ const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
 
 const CONFIG={worldSize:3000,botCount:15,webSpeed:12,webCooldown:1200,webDamageBase:4,webDamagePercent:0.06,eatSizeRatio:0.75,foodCount:120,buffCount:8,gridSize:150};
+
+// ══════════════════════════════════════════
+//  HARİTA SİSTEMİ
+// ══════════════════════════════════════════
+const MAPS = {
+    neon: {
+        id: 'neon',
+        name: '🌃 Neon Şehir',
+        bgGradient: ['#0f0a1e', '#050508'],
+        gridColor: 'rgba(150,0,255,0.04)',
+        borderColor: 'rgba(150,0,255,0.4)',
+        foodColors: ['#9600ff','#00e5a0','#ff3366','#ffaa00','#00aaff','#ff6600'],
+        particles: null, // Varsayılan parçacık yok
+        ambientObjects: []
+    },
+    space: {
+        id: 'space',
+        name: '🌌 Uzay',
+        bgGradient: ['#0a0a15', '#000005'],
+        gridColor: 'rgba(100,150,255,0.03)',
+        borderColor: 'rgba(100,150,255,0.3)',
+        foodColors: ['#00ffff','#ff00ff','#ffff00','#00ff00','#ff8800','#8800ff'],
+        particles: 'stars',
+        ambientObjects: [] // Yıldızlar draw'da oluşturulacak
+    },
+    forest: {
+        id: 'forest',
+        name: '🌲 Orman',
+        bgGradient: ['#0a1a0a', '#050a05'],
+        gridColor: 'rgba(0,150,50,0.04)',
+        borderColor: 'rgba(0,200,100,0.4)',
+        foodColors: ['#00ff00','#88ff00','#ffaa00','#ff6600','#00ffaa','#aaff00'],
+        particles: 'leaves',
+        ambientObjects: []
+    }
+};
+
+let currentMap = 'neon';
+let mapStars = []; // Uzay haritası için yıldızlar
+let mapLeaves = []; // Orman haritası için yapraklar
+
+// Harita değiştirme
+function setMap(mapId) {
+    if(!MAPS[mapId]) return;
+    currentMap = mapId;
+    
+    // Harita özel objelerini oluştur
+    if(mapId === 'space' && mapStars.length === 0) {
+        for(let i = 0; i < 200; i++) {
+            mapStars.push({
+                x: Math.random() * CONFIG.worldSize,
+                y: Math.random() * CONFIG.worldSize,
+                size: Math.random() * 2 + 0.5,
+                brightness: Math.random(),
+                twinkleSpeed: Math.random() * 0.05 + 0.01
+            });
+        }
+    }
+    
+    if(mapId === 'forest' && mapLeaves.length === 0) {
+        for(let i = 0; i < 50; i++) {
+            mapLeaves.push({
+                x: Math.random() * CONFIG.worldSize,
+                y: Math.random() * CONFIG.worldSize,
+                size: Math.random() * 15 + 10,
+                rotation: Math.random() * Math.PI * 2,
+                color: ['#228B22', '#32CD32', '#006400', '#556B2F'][Math.floor(Math.random() * 4)],
+                swayOffset: Math.random() * Math.PI * 2
+            });
+        }
+    }
+    
+    // Menüde aktif haritayı göster
+    document.querySelectorAll('.mapBtn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.map === mapId);
+    });
+}
+
+// ══════════════════════════════════════════
+//  SKİN/KARAKTER SİSTEMİ
+// ══════════════════════════════════════════
+const SKINS = {
+    // Temel renkler
+    default: { id: 'default', name: 'Klasik', type: 'color', color: '#00e5a0', icon: '🟢', locked: false },
+    purple: { id: 'purple', name: 'Mor', type: 'color', color: '#9600ff', icon: '🟣', locked: false },
+    red: { id: 'red', name: 'Kırmızı', type: 'color', color: '#ff3366', icon: '🔴', locked: false },
+    orange: { id: 'orange', name: 'Turuncu', type: 'color', color: '#ff6600', icon: '🟠', locked: false },
+    yellow: { id: 'yellow', name: 'Sarı', type: 'color', color: '#ffaa00', icon: '🟡', locked: false },
+    blue: { id: 'blue', name: 'Mavi', type: 'color', color: '#00aaff', icon: '🔵', locked: false },
+    
+    // Hayvanlar
+    spider: { id: 'spider', name: 'Örümcek', type: 'character', emoji: '🕷️', color: '#333333', glow: '#ff0000', locked: false },
+    scorpion: { id: 'scorpion', name: 'Akrep', type: 'character', emoji: '🦂', color: '#8B4513', glow: '#ffaa00', locked: false },
+    octopus: { id: 'octopus', name: 'Ahtapot', type: 'character', emoji: '🐙', color: '#ff6699', glow: '#ff00ff', locked: false },
+    snake: { id: 'snake', name: 'Yılan', type: 'character', emoji: '🐍', color: '#228B22', glow: '#00ff00', locked: false },
+    
+    // Elementler
+    fire: { id: 'fire', name: 'Ateş', type: 'element', emoji: '🔥', colors: ['#ff0000', '#ff6600', '#ffaa00'], glow: '#ff3300', locked: false },
+    ice: { id: 'ice', name: 'Buz', type: 'element', emoji: '❄️', colors: ['#00ffff', '#0088ff', '#ffffff'], glow: '#00aaff', locked: false },
+    electric: { id: 'electric', name: 'Elektrik', type: 'element', emoji: '⚡', colors: ['#ffff00', '#ffaa00', '#ffffff'], glow: '#ffff00', locked: false },
+    toxic: { id: 'toxic', name: 'Zehir', type: 'element', emoji: '☠️', colors: ['#00ff00', '#88ff00', '#aaff00'], glow: '#00ff00', locked: false },
+    
+    // Özel
+    ghost: { id: 'ghost', name: 'Hayalet', type: 'special', emoji: '👻', color: '#ffffff', glow: '#aaaaff', opacity: 0.7, locked: false },
+    robot: { id: 'robot', name: 'Robot', type: 'special', emoji: '🤖', color: '#888888', glow: '#00ffff', locked: false },
+    alien: { id: 'alien', name: 'Uzaylı', type: 'special', emoji: '👽', color: '#00ff88', glow: '#00ffaa', locked: false },
+    demon: { id: 'demon', name: 'Şeytan', type: 'special', emoji: '😈', color: '#660000', glow: '#ff0000', locked: false }
+};
+
+let currentSkin = 'default';
+
+function setSkin(skinId) {
+    if(!SKINS[skinId] || SKINS[skinId].locked) return;
+    currentSkin = skinId;
+    
+    // Menüde aktif skini göster
+    document.querySelectorAll('.skinItem').forEach(item => {
+        item.classList.toggle('active', item.dataset.skin === skinId);
+    });
+    
+    // Önizleme güncelle
+    updateSkinPreview();
+}
+
+function updateSkinPreview() {
+    const preview = document.getElementById('skinPreview');
+    if(!preview) return;
+    
+    const skin = SKINS[currentSkin];
+    if(skin.type === 'color') {
+        preview.innerHTML = `<div style="width:50px;height:50px;border-radius:50%;background:${skin.color};box-shadow:0 0 20px ${skin.color}"></div>`;
+    } else {
+        preview.innerHTML = `<div style="font-size:40px;filter:drop-shadow(0 0 10px ${skin.glow})">${skin.emoji}</div>`;
+    }
+}
+
+function getSkinColor() {
+    const skin = SKINS[currentSkin];
+    if(skin.type === 'color') return skin.color;
+    if(skin.colors) return skin.colors[0];
+    return skin.color || '#00e5a0';
+}
+
+function getSkinGlow() {
+    const skin = SKINS[currentSkin];
+    return skin.glow || skin.color || '#00e5a0';
+}
+
+function showSkinTab(tabName) {
+    // Tüm tabları gizle
+    document.querySelectorAll('.skinTab').forEach(tab => tab.style.display = 'none');
+    // Seçilen tabı göster
+    const selectedTab = document.getElementById('skinTab-' + tabName);
+    if(selectedTab) selectedTab.style.display = 'flex';
+    
+    // Tab butonlarını güncelle
+    document.querySelectorAll('.skinTabBtn').forEach(btn => {
+        const isActive = btn.dataset.tab === tabName;
+        btn.classList.toggle('active', isActive);
+        btn.style.background = isActive ? 'rgba(0,229,160,0.2)' : 'rgba(255,255,255,0.05)';
+        btn.style.borderColor = isActive ? 'rgba(0,229,160,0.4)' : 'rgba(255,255,255,0.1)';
+    });
+}
 
 // ══════════════════════════════════════════
 //  PERFORMANS: DOM Element Cache
@@ -1495,7 +1732,22 @@ function spawnParticles(x,y,color,count){
     for(let i=0;i<n;i++) particles.push({x,y,vx:(Math.random()-.5)*5,vy:(Math.random()-.5)*5,life:1,color,size:Math.random()*3+1});
 }
 
-function createPlayer(name){const c=typeof selectedColor!=='undefined'?selectedColor:'#00e5a0';return{x:CONFIG.worldSize/2,y:CONFIG.worldSize/2,size:30,color:c,name:name||'Sen',speed:4,isPlayer:true,alive:true,score:0}}
+function createPlayer(name){
+    const skin = SKINS[currentSkin];
+    const color = getSkinColor();
+    return{
+        x:CONFIG.worldSize/2,
+        y:CONFIG.worldSize/2,
+        size:30,
+        color:color,
+        skinId:currentSkin,
+        name:name||'Sen',
+        speed:4,
+        isPlayer:true,
+        alive:true,
+        score:0
+    }
+}
 
 function createBot(i){
     const names=['Zephyr','Vortex','Blaze','Nova','Toxin','Shade','Rune','Kira','Phantom','Echo','Storm','Frost','Ember','Vex','Nox'];
@@ -2157,6 +2409,7 @@ function update(){
             if(dist(web,t)<t.size+web.size){
                 const damage = calculateDamage(t.size, web.isCharged);
                 t.size = Math.max(15, t.size - damage);
+                t._localHitTime = Date.now(); // LAG COMPENSATION: Vurulma zamanını kaydet
                 spawnParticles(web.x,web.y,web.color,web.isCharged?14:6);
                 if(web.owner===player){
                     player.score+=20;
@@ -2294,17 +2547,57 @@ function updateLeaderboard(){
 
 function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
+    
+    // Harita arkaplanı
+    const map = MAPS[currentMap];
     const grad=ctx.createRadialGradient(canvas.width/2,canvas.height/2,0,canvas.width/2,canvas.height/2,canvas.width);
-    grad.addColorStop(0,'#0f0a1e');grad.addColorStop(1,'#050508');
+    grad.addColorStop(0, map.bgGradient[0]);
+    grad.addColorStop(1, map.bgGradient[1]);
     ctx.fillStyle=grad;ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.save();ctx.translate(-camera.x,-camera.y);
 
     // Viewport culling bounds
     const vx1=camera.x-50,vy1=camera.y-50,vx2=camera.x+canvas.width+50,vy2=camera.y+canvas.height+50;
-    ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;
+    
+    // Harita özel efektleri
+    if(currentMap === 'space') {
+        // Yıldızlar
+        mapStars.forEach(star => {
+            if(star.x < vx1 || star.x > vx2 || star.y < vy1 || star.y > vy2) return;
+            star.brightness += star.twinkleSpeed;
+            const alpha = 0.3 + Math.sin(star.brightness) * 0.4;
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+            ctx.fill();
+        });
+    }
+    
+    if(currentMap === 'forest') {
+        // Arka plan yaprakları (dekoratif)
+        const time = Date.now() / 1000;
+        mapLeaves.forEach(leaf => {
+            if(leaf.x < vx1 - 20 || leaf.x > vx2 + 20 || leaf.y < vy1 - 20 || leaf.y > vy2 + 20) return;
+            ctx.save();
+            ctx.translate(leaf.x, leaf.y);
+            ctx.rotate(leaf.rotation + Math.sin(time + leaf.swayOffset) * 0.1);
+            ctx.globalAlpha = 0.15;
+            ctx.fillStyle = leaf.color;
+            // Basit yaprak şekli
+            ctx.beginPath();
+            ctx.ellipse(0, 0, leaf.size * 0.4, leaf.size, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        });
+        ctx.globalAlpha = 1;
+    }
+    
+    // Grid - haritaya göre renk
+    ctx.strokeStyle = map.gridColor;
+    ctx.lineWidth=1;
     for(let x=0;x<=CONFIG.worldSize;x+=CONFIG.gridSize){if(x<vx1||x>vx2)continue;ctx.beginPath();ctx.moveTo(x,Math.max(0,vy1));ctx.lineTo(x,Math.min(CONFIG.worldSize,vy2));ctx.stroke()}
     for(let y=0;y<=CONFIG.worldSize;y+=CONFIG.gridSize){if(y<vy1||y>vy2)continue;ctx.beginPath();ctx.moveTo(Math.max(0,vx1),y);ctx.lineTo(Math.min(CONFIG.worldSize,vx2),y);ctx.stroke()}
-    ctx.strokeStyle='rgba(150,0,255,0.4)';ctx.lineWidth=4;ctx.strokeRect(0,0,CONFIG.worldSize,CONFIG.worldSize);
+    ctx.strokeStyle=map.borderColor;ctx.lineWidth=4;ctx.strokeRect(0,0,CONFIG.worldSize,CONFIG.worldSize);
 
     foods.forEach(food=>{if(food.x<vx1||food.x>vx2||food.y<vy1||food.y>vy2)return;const s=food.size+Math.sin(food.pulse)*2;ctx.beginPath();ctx.arc(food.x,food.y,s,0,Math.PI*2);ctx.fillStyle=food.color;ctx.shadowColor=food.color;ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0});
 
@@ -2409,40 +2702,78 @@ function drawEntity(e){
     const evo=getEvolution(e.size);
     const legs=evo.legs;
     const t=Date.now()*0.002;
+    
+    // Skin bilgisi al
+    const skin = e.skinId ? SKINS[e.skinId] : null;
+    const isSpecialSkin = skin && (skin.type === 'character' || skin.type === 'element' || skin.type === 'special');
 
     // Aura (evrim 2+)
     if(evo.aura){
         const pulse=Math.sin(t*2)*4;
         ctx.beginPath();ctx.arc(e.x,e.y,e.size+16+pulse,0,Math.PI*2);
         const ag=ctx.createRadialGradient(e.x,e.y,e.size,e.x,e.y,e.size+20+pulse);
-        ag.addColorStop(0,evo.glowColor+'66');ag.addColorStop(1,evo.glowColor+'00');
+        const glowColor = skin?.glow || evo.glowColor;
+        ag.addColorStop(0,glowColor+'66');ag.addColorStop(1,glowColor+'00');
         ctx.fillStyle=ag;ctx.fill();
     }
 
-    // Bacaklar
-    for(let i=0;i<legs;i++){
-        const a=(i/legs)*Math.PI*2+t*0.3;
-        const legLen=e.size*1.4;
-        const midX=e.x+Math.cos(a)*e.size*0.9;
-        const midY=e.y+Math.sin(a)*e.size*0.9;
-        const endX=e.x+Math.cos(a+0.4)*legLen;
-        const endY=e.y+Math.sin(a+0.4)*legLen;
-        ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.quadraticCurveTo(midX,midY,endX,endY);
-        ctx.strokeStyle=evo.glowColor+'99';ctx.lineWidth=Math.max(1,e.size*0.06);ctx.stroke();
+    // Bacaklar (sadece renk skinleri için)
+    if(!isSpecialSkin) {
+        for(let i=0;i<legs;i++){
+            const a=(i/legs)*Math.PI*2+t*0.3;
+            const legLen=e.size*1.4;
+            const midX=e.x+Math.cos(a)*e.size*0.9;
+            const midY=e.y+Math.sin(a)*e.size*0.9;
+            const endX=e.x+Math.cos(a+0.4)*legLen;
+            const endY=e.y+Math.sin(a+0.4)*legLen;
+            ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.quadraticCurveTo(midX,midY,endX,endY);
+            ctx.strokeStyle=evo.glowColor+'99';ctx.lineWidth=Math.max(1,e.size*0.06);ctx.stroke();
+        }
     }
 
+    // Ghost opacity
+    if(skin?.opacity) ctx.globalAlpha = skin.opacity;
+
     // Dış halka
-    ctx.beginPath();ctx.arc(e.x,e.y,e.size+4,0,Math.PI*2);ctx.fillStyle=e.color+'33';ctx.fill();
+    ctx.beginPath();ctx.arc(e.x,e.y,e.size+4,0,Math.PI*2);
+    ctx.fillStyle=e.color+'33';ctx.fill();
 
     // Ana gövde
     ctx.beginPath();ctx.arc(e.x,e.y,e.size,0,Math.PI*2);
-    const g=ctx.createRadialGradient(e.x-e.size*.3,e.y-e.size*.3,0,e.x,e.y,e.size);
-    g.addColorStop(0,lighten(e.color));g.addColorStop(1,e.color);
-    ctx.fillStyle=g;ctx.shadowColor=evo.glowColor;ctx.shadowBlur=evo.aura?30:20;ctx.fill();ctx.shadowBlur=0;
+    
+    // Element skinleri için gradient
+    if(skin?.colors) {
+        const g=ctx.createRadialGradient(e.x-e.size*.3,e.y-e.size*.3,0,e.x,e.y,e.size);
+        g.addColorStop(0,skin.colors[2] || skin.colors[0]);
+        g.addColorStop(0.5,skin.colors[1] || skin.colors[0]);
+        g.addColorStop(1,skin.colors[0]);
+        ctx.fillStyle=g;
+    } else {
+        const g=ctx.createRadialGradient(e.x-e.size*.3,e.y-e.size*.3,0,e.x,e.y,e.size);
+        g.addColorStop(0,lighten(e.color));g.addColorStop(1,e.color);
+        ctx.fillStyle=g;
+    }
+    
+    const glowColor = skin?.glow || evo.glowColor;
+    ctx.shadowColor=glowColor;ctx.shadowBlur=evo.aura?30:20;ctx.fill();ctx.shadowBlur=0;
+    
+    // Reset opacity
+    ctx.globalAlpha = 1;
 
-    // Web deseni
-    for(let i=0;i<legs;i++){const a=(i/legs)*Math.PI*2;ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x+Math.cos(a)*e.size,e.y+Math.sin(a)*e.size);ctx.strokeStyle=e.color+'55';ctx.lineWidth=1;ctx.stroke()}
-    for(let ring=0.35;ring<=1;ring+=0.35){ctx.beginPath();ctx.arc(e.x,e.y,e.size*ring,0,Math.PI*2);ctx.strokeStyle=e.color+'44';ctx.lineWidth=0.8;ctx.stroke()}
+    // Karakter emoji (character/element/special skinler için)
+    if(isSpecialSkin && skin.emoji) {
+        ctx.font = `${e.size * 1.2}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = skin.glow;
+        ctx.shadowBlur = 15;
+        ctx.fillText(skin.emoji, e.x, e.y);
+        ctx.shadowBlur = 0;
+    } else {
+        // Web deseni (sadece renk skinleri için)
+        for(let i=0;i<legs;i++){const a=(i/legs)*Math.PI*2;ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x+Math.cos(a)*e.size,e.y+Math.sin(a)*e.size);ctx.strokeStyle=e.color+'55';ctx.lineWidth=1;ctx.stroke()}
+        for(let ring=0.35;ring<=1;ring+=0.35){ctx.beginPath();ctx.arc(e.x,e.y,e.size*ring,0,Math.PI*2);ctx.strokeStyle=e.color+'44';ctx.lineWidth=0.8;ctx.stroke()}
+    }
 
     // Evrim görseli (yüklenmiş ise)
     const evoImg = evoImages[evo.stage];
