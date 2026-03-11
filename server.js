@@ -145,6 +145,11 @@ setInterval(gameTick,CONFIG.tickRate);
 
 io.on('connection',(socket)=>{
     console.log('Connected:',socket.id);
+    
+    // Ping handler
+    socket.on('ping', () => {
+        socket.emit('pong');
+    });
 
     socket.on('join',(data)=>{
         players[socket.id]={id:socket.id,name:data.name||'Oyuncu',x:CONFIG.worldSize/2+randInt(-300,300),y:CONFIG.worldSize/2+randInt(-300,300),size:30,color:data.color||COLORS[randInt(0,COLORS.length-1)],score:0,alive:true,vx:0,vy:0};
