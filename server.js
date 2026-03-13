@@ -19,7 +19,8 @@ app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'privacy.htm
 const CONFIG = {
     worldSize: 3000, foodCount: 120, buffCount: 8, botCount: 12,
     tickRate: 33, webSpeed: 12, webCooldown: 1200,
-    webDamage: 0.18, webDamageCharged: 0.45,
+    webDamage: 0.12, webDamageCharged: 0.35,
+    foodSizeGain: 2, foodScoreGain: 10,
     eatSizeRatio: 0.75, botWebRange: 350, botChaseRange: 400, botFleeRatio: 0.6,
     maxWebCount: 100, // Performans: Max web sayısı
     maxPlayerSize: 200, // Max oyuncu boyutu
@@ -238,8 +239,8 @@ io.on('connection',(socket)=>{
         // Anti-cheat: proximity check
         if(dist(p,food)>p.size+food.size+30)return;
         // Server-side size/score artışı
-        p.size=Math.min(CONFIG.maxPlayerSize,p.size+0.5);
-        p.score+=5;
+        p.size=Math.min(CONFIG.maxPlayerSize,p.size+CONFIG.foodSizeGain);
+        p.score+=CONFIG.foodScoreGain;
         foods.splice(i,1);const nf=createFood();foods.push(nf);
         io.emit('foodUpdate',{removed:foodId,added:nf});
     });
