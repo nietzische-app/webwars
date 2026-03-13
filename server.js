@@ -58,7 +58,8 @@ for(let i=0;i<CONFIG.buffCount;i++)buffItems.push(createBuff());
 
 function createBot(idx){
     const id='bot_'+uid();
-    return{id,isBot:true,name:BOT_NAMES[idx%BOT_NAMES.length],x:randInt(200,CONFIG.worldSize-200),y:randInt(200,CONFIG.worldSize-200),size:randInt(20,45),color:COLORS[randInt(0,COLORS.length-1)],score:0,alive:true,speed:randFloat(1.8,3.0),targetX:randInt(100,CONFIG.worldSize-100),targetY:randInt(100,CONFIG.worldSize-100),lastWeb:0,webCooldown:randInt(1500,3500),wanderTimer:0,vx:0,vy:0};
+    const size=randInt(20,45);
+    return{id,isBot:true,name:BOT_NAMES[idx%BOT_NAMES.length],x:randInt(200,CONFIG.worldSize-200),y:randInt(200,CONFIG.worldSize-200),size,_origSize:size,color:COLORS[randInt(0,COLORS.length-1)],score:0,alive:true,speed:randFloat(1.8,3.0),targetX:randInt(100,CONFIG.worldSize-100),targetY:randInt(100,CONFIG.worldSize-100),lastWeb:0,webCooldown:randInt(1500,3500),wanderTimer:0,vx:0,vy:0};
 }
 for(let i=0;i<CONFIG.botCount;i++){const b=createBot(i);bots[b.id]=b;}
 
@@ -84,10 +85,10 @@ function updateBot(bot){
             bot.targetX=clamp(bot.x+(dx/d)*400,100,CONFIG.worldSize-100);
             bot.targetY=clamp(bot.y+(dy/d)*400,100,CONFIG.worldSize-100);
         } else {
-            const prey=all.filter(e=>e.size<bot.size*CONFIG.eatSizeRatio&&dist(bot,e)<CONFIG.botChaseRange).sort((a,b)=>dist(bot,a)-dist(bot,b))[0];
+            let prey=null,preyDist=Infinity;all.forEach(e=>{if(e.size<bot.size*CONFIG.eatSizeRatio){const ed=dist(bot,e);if(ed<CONFIG.botChaseRange&&ed<preyDist){preyDist=ed;prey=e;}}});
             if(prey){bot.targetX=prey.x;bot.targetY=prey.y;}
             else{
-                const nf=foods.sort((a,b)=>dist(bot,a)-dist(bot,b))[0];
+                let nf=null,nfDist=Infinity;foods.forEach(f=>{const fd=dist(bot,f);if(fd<nfDist){nfDist=fd;nf=f;}});
                 if(nf){bot.targetX=nf.x;bot.targetY=nf.y;}
                 else{bot.targetX=randInt(100,CONFIG.worldSize-100);bot.targetY=randInt(100,CONFIG.worldSize-100);}
             }
@@ -106,7 +107,7 @@ function updateBot(bot){
 
     // Shoot
     if(now-bot.lastWeb>bot.webCooldown){
-        const t=all.filter(e=>dist(bot,e)<CONFIG.botWebRange).sort((a,b)=>dist(bot,a)-dist(bot,b))[0];
+        let t=null,tDist=Infinity;all.forEach(e=>{const ed=dist(bot,e);if(ed<CONFIG.botWebRange&&ed<tDist){tDist=ed;t=e;}});
         if(t){
             const a=Math.atan2(t.y-bot.y,t.x-bot.x);
             webs.push({id:uid(),ownerId:bot.id,color:bot.color,x:bot.x,y:bot.y,vx:Math.cos(a)*CONFIG.webSpeed,vy:Math.sin(a)*CONFIG.webSpeed,dx:Math.cos(a),dy:Math.sin(a),size:10,damage:CONFIG.webDamage,charged:false,life:1.0});
@@ -124,7 +125,7 @@ function updateBot(bot){
     all.forEach(e=>{
         if(!e.alive||dist(bot,e)>=bot.size||e.size>=bot.size*CONFIG.eatSizeRatio)return;
         bot.size=Math.min(CONFIG.maxBotSize, bot.size+e.size*0.3);bot.score+=Math.floor(e.size*10);e.alive=false;
-        if(e.isBot){setTimeout(()=>{const nb=createBot(0);bots[nb.id]=nb;delete bots[e.id];},5000);}
+        if(e.isBot){const deadId=e.id;setTimeout(()=>{const nb=createBot(randInt(0,BOT_NAMES.length-1));bots[nb.id]=nb;delete bots[deadId];},5000);}
         else{io.to(e.id).emit('killedByBot',{killerName:bot.name});}
     });
 }
@@ -138,8 +139,26 @@ function updateWebs(){
             if(t.id===web.ownerId)continue;
             if(dist(web,t)<t.size+web.size){
                 t.size=Math.max(15,t.size*(1-web.damage));
+                // Mega mermi ile öldürme: charged web + hedef 20 veya altı
+                if(web.charged && t.size <= 20){
+                    t.alive = false;
+                    // Yem bırak
+                    const foodCount = Math.max(3, Math.floor((t._origSize || t.size) / 10));
+                    for(let fi=0;fi<foodCount;fi++){
+                        foods.push({id:uid(),x:t.x+Math.random()*80-40,y:t.y+Math.random()*80-40,size:5+Math.random()*3,color:t.color});
+                    }
+                    if(players[web.ownerId]){
+                        players[web.ownerId].score += Math.floor((t._origSize || 30) * 15);
+                    }
+                    if(t.isBot){
+                        const botId = t.id;
+                        setTimeout(()=>{const nb=createBot(randInt(0,BOT_NAMES.length-1));bots[nb.id]=nb;delete bots[botId];},5000);
+                    } else {
+                        io.to(t.id).emit('killedByPlayer',{killerName:players[web.ownerId]?.name||'Bilinmeyen'});
+                    }
+                }
                 if(players[web.ownerId]){players[web.ownerId].score+=20;io.to(web.ownerId).emit('webHitConfirm',{targetId:t.id,megaGain:18});}
-                if(!t.isBot)io.to(t.id).emit('tookDamage',{newSize:t.size});
+                if(!t.isBot && t.alive)io.to(t.id).emit('tookDamage',{newSize:t.size});
                 return false;
             }
         }
@@ -150,6 +169,8 @@ function updateWebs(){
 function gameTick(){
     Object.values(bots).forEach(updateBot);
     updateWebs();
+    // Foods array taşma koruması
+    if(foods.length > CONFIG.foodCount + 30) foods.splice(CONFIG.foodCount);
     const botsArr=Object.values(bots).filter(b=>b.alive).map(b=>({id:b.id,name:b.name,x:b.x,y:b.y,size:b.size,color:b.color,score:b.score,isBot:true}));
     const playersArr=Object.values(players).filter(p=>p.alive).map(p=>({id:p.id,name:p.name,x:p.x,y:p.y,size:p.size,color:p.color,score:p.score}));
     io.emit('tick',{players:playersArr,bots:botsArr,webs:webs.map(w=>({id:w.id,ownerId:w.ownerId,x:w.x,y:w.y,color:w.color,size:w.size,charged:w.charged}))});
@@ -201,6 +222,8 @@ io.on('connection',(socket)=>{
         const offsets=data.triple?[0,0.25,-0.25]:[0];
         offsets.forEach((off,i)=>{
             setTimeout(()=>{
+                // Disconnect kontrolü - ghost web önleme
+                if(!players[socket.id]) return;
                 webs.push({id:uid(),ownerId:socket.id,color:p.color,x:p.x,y:p.y,vx:Math.cos(angle+off)*spd,vy:Math.sin(angle+off)*spd,dx:Math.cos(angle+off),dy:Math.sin(angle+off),size:charged?28:10,damage:charged?CONFIG.webDamageCharged:CONFIG.webDamage,charged,life:charged?1.5:1.0});
             },i*100);
         });
@@ -271,6 +294,8 @@ io.on('connection',(socket)=>{
 
     socket.on('disconnect',()=>{
         console.log('Disconnected:',socket.id);
+        // Disconnect olan oyuncunun weblerini temizle (ghost web önleme)
+        webs = webs.filter(w => w.ownerId !== socket.id);
         delete players[socket.id];
         io.emit('playerLeft',socket.id);
         io.emit('onlineCount',Object.keys(players).length);

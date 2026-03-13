@@ -77,6 +77,9 @@ body{background:#0a0a0f;font-family:'Rajdhani',sans-serif;overflow:hidden;width:
   .lb-entry{font-size:10px;}
   #scoreBox{font-size:11px;padding:4px 8px;}
   #megaHitCount{font-size:9px;}
+  /* Mobilde ses/fullscreen butonları ve mega bar gizle */
+  #gameTopRight{display:none !important;}
+  #webCooldown .mega-section{display:none !important;}
 }
 #gameOver{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(8px)}
 @media(max-width:500px){.go-content{padding:14px 12px;gap:8px;font-size:13px;}}
@@ -330,26 +333,31 @@ if(typeof io !== 'undefined') {
                     }
                 });
             }
+            // Online modda dead botları temizle (server yeni id ile respawn eder)
+            if(data.bots && data.bots.length > 0){
+                const serverIds = new Set(data.bots.map(b=>b.id));
+                bots = bots.filter(b => b.alive || serverIds.has(b.id));
+            }
             // Webs artık server'dan geliyor (sadece görsel)
             serverWebs = data.webs || [];
         });
 
         // Init: ilk dünya durumu
         socket.on('init', d => {
-            if(d.foods) foods = d.foods;
-            if(d.buffItems) buffItems = d.buffItems;
+            if(d.foods) foods = d.foods.map(f=>({...f, pulse: f.pulse ?? Math.random()*Math.PI*2}));
+            if(d.buffItems) buffItems = d.buffItems.map(b=>({...b, pulse: b.pulse ?? Math.random()*Math.PI*2, eaten:false}));
             if(d.bots) bots = d.bots.map(b=>({...b,alive:true,vx:0,vy:0}));
             mySocketId = d.id;
             console.log('World initialized, id:', d.id);
         });
 
         // Yemek & buff güncellemeleri
-        socket.on('foodUpdate', d => { if(typeof foods!=='undefined'){foods=foods.filter(f=>f.id!==d.removed);if(d.added)foods.push(d.added);} });
-        socket.on('buffUpdate', d => { if(typeof buffItems!=='undefined'){buffItems=buffItems.filter(b=>b.id!==d.removed);if(d.added)buffItems.push(d.added);} });
+        socket.on('foodUpdate', d => { if(typeof foods!=='undefined'){foods=foods.filter(f=>f.id!==d.removed);if(d.added)foods.push({...d.added, pulse: d.added.pulse ?? Math.random()*Math.PI*2});} });
+        socket.on('buffUpdate', d => { if(typeof buffItems!=='undefined'){buffItems=buffItems.filter(b=>b.id!==d.removed);if(d.added)buffItems.push({...d.added, pulse: d.added.pulse ?? Math.random()*Math.PI*2, eaten:false});} });
         socket.on('buffGranted', d => { if(typeof addBuff==='function') addBuff(d.type); });
 
         // İsabet onayı (mega bar doldur)
-        socket.on('webHitConfirm', d => { megaCharge = Math.min(MEGA_MAX, megaCharge + d.megaGain); });
+        socket.on('webHitConfirm', d => { megaCharge = Math.min(MEGA_MAX, megaCharge + d.megaGain); window.megaCharge = megaCharge; });
 
         // Hasar aldık
         socket.on('tookDamage', d => { if(player && d.newSize < player.size) player.size = Math.max(15, d.newSize); });
@@ -410,7 +418,7 @@ function updatePingDisplay(ping) {
 }
 
 // Her 2 saniyede ping ölç
-setInterval(measurePing, 2000);
+let pingInterval = setInterval(measurePing, 2000);
 
 function emitJoin(name) { if(socket && player) socket.emit('join', {name, color: player.color}); }
 function emitUpdate(x,y,vx,vy) { if(socket && (!emitUpdate.last || Date.now()-emitUpdate.last>50)) { socket.emit('move',{x,y,vx:vx||0,vy:vy||0}); emitUpdate.last=Date.now(); } }
@@ -1223,7 +1231,7 @@ function startGame() {
       <div id="webBar" style="height:100%;background:linear-gradient(90deg,#9600ff,#00e5a0);border-radius:4px;width:0%;transition:width .1s;"></div>
     </div>
     <!-- MEGA BAR -->
-    <div style="display:flex;flex-direction:column;gap:3px;">
+    <div class="mega-section" style="display:flex;flex-direction:column;gap:3px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <span style="color:#ffaa00;font-size:11px;font-weight:700;">💥 MEGA ŞOT</span>
         <span id="megaHitCount" style="color:rgba(255,255,255,0.4);font-size:10px;">0 / 6</span>
@@ -1543,6 +1551,7 @@ const EVOLUTIONS = [
 ];
 function getEvolution(size){for(let i=EVOLUTIONS.length-1;i>=0;i--){if(size>=EVOLUTIONS[i].minSize)return EVOLUTIONS[i]}return EVOLUTIONS[0]}
 function checkEvolution(entity){
+    if(!entity) return;
     const newEvo=getEvolution(entity.size);
     if(entity.evoStage===undefined)entity.evoStage=0;
     if(newEvo.stage>entity.evoStage){
@@ -1623,8 +1632,9 @@ function updateAbilityHud() {
         el = document.createElement('div');
         el.id = 'abilityHud';
         el.style.cssText = `position:fixed;bottom:80px;right:20px;z-index:10;pointer-events:none;text-align:center;`;
-        document.getElementById('gameContainer').appendChild(el);
+        const gc=document.getElementById('gameContainer');if(!gc)return;gc.appendChild(el);
     }
+    if(!player) return;
     const evo = getEvolution(player.size);
     const ability = getAbility(evo.stage);
     if(!ability) { el.innerHTML = ''; return; }
@@ -1691,11 +1701,11 @@ let camera={x:0,y:0},mouse={x:0,y:0};
 let keys={w:false,a:false,s:false,d:false};
 let lastWebTime=0,mouseHeld=false,chargeStart=0,animFrame=null;
 let serverWebs=[], mySocketId=null;
-let megaCharge=0;window.megaCharge=0;
+let megaCharge=0;
 const MEGA_MAX=100;
 let gamePaused=false;
 // Global referanslar mobil için
-window.megaCharge=0;window.megaCharge=0;
+window.megaCharge=0;
 window.MEGA_MAX=100;
 window.webs=[];
 window.lastWebTime=0;
@@ -1756,7 +1766,8 @@ function createPlayer(name){
 
 function createBot(i){
     const names=['Zephyr','Vortex','Blaze','Nova','Toxin','Shade','Rune','Kira','Phantom','Echo','Storm','Frost','Ember','Vex','Nox'];
-    return{x:randInt(200,CONFIG.worldSize-200),y:randInt(200,CONFIG.worldSize-200),size:randInt(20,45),color:COLORS[i%COLORS.length],name:names[i%names.length],speed:randFloat(1.8,3),isPlayer:false,alive:true,score:randInt(0,300),targetX:randInt(100,CONFIG.worldSize-100),targetY:randInt(100,CONFIG.worldSize-100),lastWeb:0,webCooldown:randInt(1500,4000),wanderTimer:0}
+    const origSize = randInt(20,45);
+    return{x:randInt(200,CONFIG.worldSize-200),y:randInt(200,CONFIG.worldSize-200),size:origSize,_origSize:origSize,color:COLORS[i%COLORS.length],name:names[i%names.length],speed:randFloat(1.8,3),isPlayer:false,alive:true,score:randInt(0,300),targetX:randInt(100,CONFIG.worldSize-100),targetY:randInt(100,CONFIG.worldSize-100),lastWeb:0,webCooldown:randInt(1500,4000),wanderTimer:0,megaCharge:0}
 }
 
 function createFood(){return{id:Math.random().toString(36).substr(2,9),x:randInt(50,CONFIG.worldSize-50),y:randInt(50,CONFIG.worldSize-50),size:randInt(5,12),color:COLORS[randInt(0,COLORS.length-1)],pulse:Math.random()*Math.PI*2}}
@@ -1810,6 +1821,7 @@ function startGame_original(){
     buffItems=Array.from({length:CONFIG.buffCount},createBuffItem);
     
     particles=[];activeBuffs=[];mouseHeld=false;chargeStart=0;lastWebTime=0;megaCharge=0;window.reviveUsed=false;window.challengeCompleted=false;
+    if(!pingInterval) pingInterval=setInterval(measurePing,2000);
     
     // Mode-specific setup
     if(window.activeGameMode==='challenge'){
@@ -2063,11 +2075,12 @@ function showMenu(){
         cancelAnimationFrame(animFrame);
         animFrame = null;
     }
-    
+    if(pingInterval){clearInterval(pingInterval);pingInterval=null;}
+
     // Oyun state'ini sıfırla
     gamePaused = false;
     if(player) player.alive = false;
-    
+
     // Socket'e bildir
     if(socket) socket.emit('died');
     
@@ -2103,8 +2116,9 @@ function showMenu(){
 function endGame(){
     if(socket) socket.emit('died');
     if(animFrame)cancelAnimationFrame(animFrame);
-    const all=[player,...bots].filter(p=>p.alive);all.sort((a,b)=>b.score-a.score);
-    const rank=all.findIndex(p=>p===player)+1;
+    if(pingInterval){clearInterval(pingInterval);pingInterval=null;}
+    const all=[player,...bots,...Object.values(otherPlayers)];all.sort((a,b)=>b.score-a.score);
+    const rank=all.findIndex(p=>p===player)+1 || all.length;
     Audio.gameOver();
     // Önce revive popup göster
     showRevivePopup(rank, all.length);
@@ -2142,6 +2156,7 @@ function doRevive() {
     player.x = CONFIG.worldSize/2 + (Math.random()-0.5)*200;
     player.y = CONFIG.worldSize/2 + (Math.random()-0.5)*200;
     document.getElementById('gameContainer').style.display = 'block';
+    if(!pingInterval) pingInterval = setInterval(measurePing, 2000);
     gameLoop();
 }
 
@@ -2202,13 +2217,16 @@ function update(){
         // Rank takibi
         const allE=[player,...bots,...Object.values(otherPlayers)].filter(e=>e.alive);
         allE.sort((a,b)=>b.score-a.score);
-        window.challengeStats.rank=allE.findIndex(e=>e===player)+1;
+        const ri=allE.findIndex(e=>e===player);window.challengeStats.rank=ri>=0?ri+1:allE.length+1;
         // Size without speed buff
         if(!hasBuff('SPEED')) window.challengeStats.sizeWithoutSpeed=Math.max(window.challengeStats.sizeWithoutSpeed||0,player.size);
         checkChallengeCompletion();
     }
-    // Günlük görev kontrolü (her oyunda)
-    if(window.challengeStats) checkDailyQuests({...window.challengeStats, score: player.score});
+    // Günlük görev kontrolü (saniyede 1 kez - localStorage performans için throttle)
+    if(window.challengeStats && (!window._lastDailyCheck || Date.now()-window._lastDailyCheck>1000)){
+        window._lastDailyCheck=Date.now();
+        checkDailyQuests({...window.challengeStats, score: player.score});
+    }
     const spd=4*(30/player.size)*(hasBuff('SPEED')?2:1);
     if(keys.w)player.y-=spd;if(keys.s)player.y+=spd;if(keys.a)player.x-=spd;if(keys.d)player.x+=spd;
     player.x=clamp(player.x,player.size,CONFIG.worldSize-player.size);
@@ -2363,11 +2381,14 @@ function update(){
             checkEvolution(player);
             onPlayerKill();
             
-            const botIndex = i;
-            setTimeout(() => {
-                if(bots[botIndex]) Object.assign(bots[botIndex], createBot(botIndex));
-            }, 5000);
-            
+            // Offline modda client respawn, online'da server halleder
+            if(!socket || !socket.connected){
+                const botIndex = i;
+                setTimeout(() => {
+                    if(bots[botIndex]) Object.assign(bots[botIndex], createBot(botIndex));
+                }, 5000);
+            }
+
             continue;
         }
         
@@ -2408,12 +2429,25 @@ function update(){
             if(dist(web, player) < player.size + web.size){
                 const damage = calculateDamage(player.size, web.isCharged);
                 player.size = Math.max(15, player.size - damage);
-                spawnParticles(web.x, web.y, web.color, 6);
+                spawnParticles(web.x, web.y, web.color, web.isCharged ? 14 : 6);
                 Audio.webHit();
+                // Mega mermi ile öldürme
+                if(web.isCharged && player.size <= 20){
+                    player.alive = false;
+                    // Büyük yem bırak
+                    for(let fi=0;fi<5;fi++){
+                        foods.push({id:Math.random().toString(36).substr(2,9),x:player.x+randInt(-30,30),y:player.y+randInt(-30,30),color:player.color,size:6,pulse:Math.random()*Math.PI*2});
+                    }
+                    spawnParticles(player.x,player.y,player.color,20);
+                    Audio.playerDeath();
+                    const killerName = (web.owner && web.owner.name) || 'Bot';
+                    showNotification('💀 ' + killerName + ' seni mega mermiyle öldürdü!', '#ff3366');
+                    setTimeout(endGame, 1000);
+                }
                 return false;
             }
         }
-        
+
         // Diğer hedeflere çarpma
         for(const t of targets){
             if(dist(web,t)<t.size+web.size){
@@ -2424,9 +2458,39 @@ function update(){
                 if(web.owner===player){
                     player.score+=20;
                     Audio.webHit();
-                    megaCharge=Math.min(MEGA_MAX,megaCharge+18);
-                    window.megaCharge=megaCharge;
+                    // Mega charge: offline'da client ekler, online'da server webHitConfirm ile gelir
+                    if(!socket || !socket.connected){
+                        megaCharge=Math.min(MEGA_MAX,megaCharge+18);
+                        window.megaCharge=megaCharge;
+                    }
                     if(window.activeGameMode==='challenge'&&window.challengeStats)window.challengeStats.webHits++;
+                }
+                // Bot mega charge kazanma
+                if(web.owner && web.owner!==player && web.owner.megaCharge !== undefined){
+                    web.owner.megaCharge = Math.min(MEGA_MAX, web.owner.megaCharge + 18);
+                }
+                // Mega mermi ile bot öldürme
+                if(web.isCharged && t.size <= 20 && t !== player){
+                    t.alive = false;
+                    // Büyük yem bırak (botun boyutuna göre)
+                    const foodCount = Math.max(3, Math.floor(t._origSize ? t._origSize / 10 : 4));
+                    for(let fi=0;fi<foodCount;fi++){
+                        foods.push({id:Math.random().toString(36).substr(2,9),x:t.x+randInt(-40,40),y:t.y+randInt(-40,40),color:t.color,size:5+Math.random()*3,pulse:Math.random()*Math.PI*2});
+                    }
+                    spawnParticles(t.x,t.y,t.color,20);
+                    if(web.owner===player){
+                        player.score += Math.floor(t._origSize ? t._origSize * 15 : 100);
+                        Audio.eatEnemy();
+                        if(window.activeGameMode==='challenge'&&window.challengeStats)window.challengeStats.kills++;
+                        onPlayerKill();
+                    }
+                    // Bot respawn - offline modda client, online'da server halleder
+                    if(!socket || !socket.connected){
+                        const botIdx = bots.indexOf(t);
+                        if(botIdx !== -1){
+                            setTimeout(()=>{ if(bots[botIdx]) Object.assign(bots[botIdx], createBot(botIdx)); }, 5000);
+                        }
+                    }
                 }
                 return false;
             }
@@ -2435,9 +2499,12 @@ function update(){
     });
 
     // Performans: Particle güncelleme - limit düşürüldü
-    if(particles.length > 60) particles.length = 50;
+    if(particles.length > 60) particles.splice(0, particles.length - 50);
     particles=particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.life-=0.05;p.vx*=0.9;p.vy*=0.9;return p.life>0});
     
+    // Food array taşma koruması
+    if(foods.length > CONFIG.foodCount + 30) foods.splice(CONFIG.foodCount, foods.length - CONFIG.foodCount);
+
     // Bot food yeme - sadece offline modda
     if(!socket || !socket.connected) {
         bots.forEach(bot=>{if(!bot.alive)return;foods.forEach((food,i)=>{if(dist(bot,food)<bot.size){bot.size+=0.3;bot.score+=5;foods[i]=createFood()}})});
@@ -2459,26 +2526,47 @@ function updateBot(bot){
         bot.wanderTimer=randInt(30,80);
     }
     // Dodge incoming webs
-    const nearbyWeb = webs.find(w => w.ownerId !== bot.id && dist(bot, w) < 80);
+    const nearbyWeb = webs.find(w => w.owner !== bot && dist(bot, w) < 80);
     if(nearbyWeb){
         // Dodge perpendicular to web direction
         const perpX = -(nearbyWeb.dy||0);
         const perpY = (nearbyWeb.dx||0);
         const norm = Math.hypot(perpX,perpY)||1;
-        bot.x += (perpX/norm)*bot.speed*1.5;
-        bot.y += (perpY/norm)*bot.speed*1.5;
+        const dodgeSpd = (bot._speedBuff ? bot.speed*2 : bot.speed) * 1.5;
+        bot.x += (perpX/norm)*dodgeSpd;
+        bot.y += (perpY/norm)*dodgeSpd;
         bot.x=clamp(bot.x,bot.size,CONFIG.worldSize-bot.size);
         bot.y=clamp(bot.y,bot.size,CONFIG.worldSize-bot.size);
         return; // skip normal movement this frame
     }
     const dx=bot.targetX-bot.x,dy=bot.targetY-bot.y,d=Math.hypot(dx,dy);
-    if(d>2){const spd=bot.speed*(30/bot.size);const mvx=(dx/d)*Math.min(spd,d);const mvy=(dy/d)*Math.min(spd,d);bot.x+=mvx;bot.y+=mvy;bot.vx=mvx;bot.vy=mvy;}
+    if(d>2){const spd=(bot._speedBuff?bot.speed*2:bot.speed)*(30/bot.size);const mvx=(dx/d)*Math.min(spd,d);const mvy=(dy/d)*Math.min(spd,d);bot.x+=mvx;bot.y+=mvy;bot.vx=mvx;bot.vy=mvy;}
     bot.x=clamp(bot.x,bot.size,CONFIG.worldSize-bot.size);bot.y=clamp(bot.y,bot.size,CONFIG.worldSize-bot.size);
     const now=Date.now();
-    if(now-bot.lastWeb>bot.webCooldown){
+    // Bot atış cooldown - RAPID_FIRE buff varsa yarıya düşür
+    let effectiveCooldown = bot.webCooldown;
+    if(bot._buffType === 'RAPID_FIRE') effectiveCooldown *= 0.5;
+
+    if(now-bot.lastWeb>effectiveCooldown){
         const targets=[player,...bots].filter(p=>p!==bot&&p.alive&&p.size>bot.size*0.5);
-        const closest=targets.sort((a,b)=>dist(bot,a)-dist(bot,b))[0];
-        if(closest&&dist(bot,closest)<350){webs.push(createWeb(bot,closest.x,closest.y));bot.lastWeb=now}
+        let closest=null,closestDist=Infinity;targets.forEach(p=>{const pd=dist(bot,p);if(pd<closestDist){closestDist=pd;closest=p;}});
+        if(closest&&closestDist<350){
+            // Mega charge doluysa mega at
+            const useMega = bot.megaCharge >= MEGA_MAX;
+            if(useMega){
+                webs.push(createWeb(bot,closest.x,closest.y,0,true));
+                bot.megaCharge = 0;
+                spawnParticles(bot.x,bot.y,bot.color,12);
+            } else if(bot._buffType === 'TRIPLE_SHOT'){
+                // Triple shot buff
+                webs.push(createWeb(bot,closest.x,closest.y,0));
+                webs.push(createWeb(bot,closest.x,closest.y,0.25));
+                webs.push(createWeb(bot,closest.x,closest.y,-0.25));
+            } else {
+                webs.push(createWeb(bot,closest.x,closest.y));
+            }
+            bot.lastWeb=now;
+        }
     }
     bots.forEach(other=>{
         if(other===bot||!other.alive)return;
@@ -2533,7 +2621,7 @@ function showBuffNotification(type){
 
 function updateBuffHud(){
     let el=document.getElementById('buffHud');
-    if(!el){el=document.createElement('div');el.id='buffHud';el.style.cssText=`position:fixed;bottom:90px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:10;pointer-events:none;max-width:90vw;flex-wrap:wrap;justify-content:center;`;document.getElementById('gameContainer').appendChild(el)}
+    if(!el){const gc=document.getElementById('gameContainer');if(!gc)return;el=document.createElement('div');el.id='buffHud';el.style.cssText=`position:fixed;bottom:90px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:10;pointer-events:none;max-width:90vw;flex-wrap:wrap;justify-content:center;`;gc.appendChild(el)}
     el.innerHTML=activeBuffs.map(b=>{const buff=BUFFS[b.type];const r=Math.ceil((b.endTime-Date.now())/1000);return`<div style="background:${buff.color}99;border:2px solid ${buff.color};border-radius:10px;padding:8px 14px;color:#fff;font-family:Rajdhani,sans-serif;font-weight:700;font-size:14px;text-align:center;">${buff.icon} ${buff.name}<br><span style="font-size:11px">${r}s</span></div>`}).join('');
 }
 
@@ -2671,7 +2759,7 @@ function draw(){
     }
 
     drawTraps();
-    bots.forEach(bot=>{if(bot.alive)drawEntity(bot)});
+    bots.forEach(bot=>{if(bot&&bot.alive)drawEntity(bot)});
     
     // Beast mode boss çizimi
     if(window.activeGameMode === 'beast' && window.beastBossTarget && window.beastBossTarget.alive){
@@ -2706,6 +2794,69 @@ function draw(){
         }
     }
     ctx.restore();
+
+    // ═══════════════════════════════════════
+    // MINIMAP (sadece desktop)
+    // ═══════════════════════════════════════
+    if(!window._isTouchMobile && player && player.alive){
+        const mmSize = 140;
+        const mmPad = 14;
+        const mmX = canvas.width - mmSize - mmPad;
+        const mmY = canvas.height - mmSize - mmPad;
+        const scale = mmSize / CONFIG.worldSize;
+
+        // Arka plan
+        ctx.fillStyle='rgba(0,0,0,0.55)';
+        ctx.strokeStyle='rgba(150,0,255,0.4)';
+        ctx.lineWidth=1.5;
+        const r=8,rx=mmX-4,ry=mmY-4,rw=mmSize+8,rh=mmSize+8;
+        ctx.beginPath();ctx.moveTo(rx+r,ry);ctx.lineTo(rx+rw-r,ry);ctx.arcTo(rx+rw,ry,rx+rw,ry+r,r);ctx.lineTo(rx+rw,ry+rh-r);ctx.arcTo(rx+rw,ry+rh,rx+rw-r,ry+rh,r);ctx.lineTo(rx+r,ry+rh);ctx.arcTo(rx,ry+rh,rx,ry+rh-r,r);ctx.lineTo(rx,ry+r);ctx.arcTo(rx,ry,rx+r,ry,r);ctx.closePath();ctx.fill();ctx.stroke();
+
+        // Yemler (küçük noktalar)
+        ctx.globalAlpha=0.4;
+        foods.forEach(f=>{
+            ctx.fillStyle=f.color;
+            ctx.fillRect(mmX+f.x*scale, mmY+f.y*scale, 1.5, 1.5);
+        });
+        ctx.globalAlpha=1;
+
+        // Buff itemler
+        buffItems.forEach(b=>{
+            if(!b||b.eaten)return;
+            ctx.fillStyle=b.isMine?'#ff3366':b.color;
+            ctx.beginPath();ctx.arc(mmX+b.x*scale, mmY+b.y*scale, 2.5, 0, Math.PI*2);ctx.fill();
+        });
+
+        // Botlar
+        bots.forEach(b=>{
+            if(!b||!b.alive)return;
+            ctx.fillStyle=b.color;
+            ctx.beginPath();ctx.arc(mmX+b.x*scale, mmY+b.y*scale, Math.max(2, b.size*scale), 0, Math.PI*2);ctx.fill();
+        });
+
+        // Diğer oyuncular
+        Object.values(otherPlayers).forEach(p=>{
+            if(!p||!p.alive)return;
+            ctx.fillStyle='#ff6600';
+            ctx.beginPath();ctx.arc(mmX+p.x*scale, mmY+p.y*scale, Math.max(2.5, p.size*scale), 0, Math.PI*2);ctx.fill();
+        });
+
+        // Oyuncu (yeşil nokta, vurgulu)
+        const px = mmX + player.x*scale;
+        const py = mmY + player.y*scale;
+        ctx.fillStyle='#00e5a0';
+        ctx.shadowColor='#00e5a0';ctx.shadowBlur=6;
+        ctx.beginPath();ctx.arc(px, py, Math.max(3, player.size*scale), 0, Math.PI*2);ctx.fill();
+        ctx.shadowBlur=0;
+
+        // Görüş alanı kutusu (camera offset kullan)
+        const vw = canvas.width * scale;
+        const vh = canvas.height * scale;
+        const vx = mmX + camera.x*scale;
+        const vy = mmY + camera.y*scale;
+        ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1;
+        ctx.strokeRect(vx, vy, vw, vh);
+    }
 }
 
 function drawEntity(e){
@@ -2805,9 +2956,37 @@ function drawEntity(e){
 
     // İsim
     ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(10,e.size*.4)}px Rajdhani`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor='rgba(0,0,0,0.8)';ctx.shadowBlur=4;ctx.fillText(e.name,e.x,e.y);ctx.shadowBlur=0;
+
+    // Bot mega charge bar (botlar için)
+    if(e.megaCharge !== undefined && e.megaCharge > 0 && e !== player){
+        const barW = e.size * 1.4;
+        const barH = 4;
+        const barX = e.x - barW/2;
+        const barY = e.y + e.size + 8;
+        // Arka plan
+        ctx.fillStyle='rgba(0,0,0,0.5)';
+        ctx.fillRect(barX, barY, barW, barH);
+        // Doluluk
+        const fill = e.megaCharge / MEGA_MAX;
+        ctx.fillStyle = fill >= 1 ? '#ffaa00' : '#ff6600';
+        ctx.fillRect(barX, barY, barW * fill, barH);
+        // Mega hazır efekti
+        if(fill >= 1){
+            ctx.shadowColor='#ffaa00';ctx.shadowBlur=8;
+            ctx.fillRect(barX, barY, barW, barH);
+            ctx.shadowBlur=0;
+        }
+    }
+
+    // Bot aktif buff ikonu
+    if(e._buffType && BUFFS[e._buffType] && e !== player){
+        ctx.font=`${Math.max(12,e.size*0.35)}px serif`;
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(BUFFS[e._buffType].icon, e.x, e.y - e.size - 10);
+    }
 }
 
-function gameLoop(){update();draw();animFrame=requestAnimationFrame(gameLoop)}
+function gameLoop(){if(animFrame)cancelAnimationFrame(animFrame);update();draw();animFrame=requestAnimationFrame(gameLoop)}
 
 // ── Auto-Aim System ──
 canvas.addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY});
@@ -2851,7 +3030,7 @@ function autoShoot(){
     lastWebTime=now;
     if(socket){
         const angle=Math.atan2(ty-player.y,tx-player.x);
-        emitWebShot({x:player.x,y:player.y,angle,charged:false});
+        emitWebShot({x:player.x,y:player.y,angle,charged:false,triple:hasBuff('TRIPLE_SHOT')});
     }
 }
 
@@ -2875,7 +3054,7 @@ canvas.addEventListener('mousedown',e=>{if(e.button!==0||!player||!player.alive)
     lastWebTime=now;
     if(socket){
         const angle=Math.atan2(ty-player.y,tx-player.x);
-        socket.emit('webShot',{angle,charged:false});
+        socket.emit('webShot',{angle,charged:false,triple:hasBuff('TRIPLE_SHOT')});
     }
 });
 
@@ -2905,7 +3084,7 @@ function mobileShoot(){
         Audio.webShoot();
     }
     lastWebTime = now;
-    if(typeof socket!=='undefined'&&socket) socket.emit('webShot',{angle:Math.atan2(ty-player.y,tx-player.x),charged:false});
+    if(typeof socket!=='undefined'&&socket) socket.emit('webShot',{angle:Math.atan2(ty-player.y,tx-player.x),charged:false,triple:(typeof hasBuff==='function'&&hasBuff('TRIPLE_SHOT'))});
 }
 function mobileAbility(){
     if(typeof useAbility==='function') useAbility();
@@ -3081,6 +3260,7 @@ function toggleMute(){const en=Audio.toggle();document.getElementById('muteBtn')
     </div>
   </div>
   <div id="fireBtn" style="position:absolute;bottom:35px;right:30px;width:80px;height:80px;border-radius:50%;background:rgba(150,0,255,0.4);border:3px solid #9600ff;color:#fff;font-size:28px;display:flex;align-items:center;justify-content:center;pointer-events:all;user-select:none;">🕸️</div>
+  <div id="abilityBtn" style="position:absolute;bottom:130px;right:40px;width:60px;height:60px;border-radius:50%;background:rgba(255,170,0,0.5);border:3px solid #ffaa00;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;pointer-events:all;user-select:none;">⚡</div>
 
 </div>
 
@@ -3089,6 +3269,7 @@ function toggleMute(){const en=Audio.toggle();document.getElementById('muteBtn')
 // ── Mobil Kontroller ──
 (function(){
     const isTouchMobile = ('ontouchstart' in window) && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    window._isTouchMobile = isTouchMobile;
     if(!isTouchMobile) return;
 
     document.getElementById('mobileControls').style.display = 'none';
@@ -3174,6 +3355,13 @@ function toggleMute(){const en=Audio.toggle();document.getElementById('muteBtn')
     document.getElementById('fireBtn').addEventListener('touchstart', e=>{
         e.preventDefault();
         if(typeof mobileShoot==='function') mobileShoot();
+    },{passive:false});
+
+    // ── Yetenek butonu ──
+    const abilBtn = document.getElementById('abilityBtn');
+    if(abilBtn) abilBtn.addEventListener('touchstart', e=>{
+        e.preventDefault();
+        if(typeof mobileAbility==='function') mobileAbility();
     },{passive:false});
 
     // ── Oyun bitince kontrolleri gizle ──
