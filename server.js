@@ -7,7 +7,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: ["https://webwars.online", "https://www.webwars.online", "https://webwars.onrender.com"],
+        origin: ["https://webwars.online", "https://www.webwars.online", "https://webwars-eu.onrender.com"],
         methods: ["GET", "POST"]
     }
 });
