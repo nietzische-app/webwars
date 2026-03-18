@@ -7,6 +7,7 @@
   <link rel="apple-touch-icon" sizes="192x192" href="android-chrome-192x192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="android-chrome-512x512.png">
   <meta name="theme-color" content="#9600ff">
+  <link rel="manifest" href="manifest.json">
   <meta property="og:title" content="Web Wars - IO Game">
   <meta property="og:description" content="Ağ at • Düşmanları küçült • Hükmet">
   <meta property="og:image" content="https://webwars.online/og-image.jpg">
@@ -3497,6 +3498,11 @@ function toggleMute(){const en=Audio.toggle();document.getElementById('muteBtn')
     document.body.style.overflow = 'auto';
   }
 })();
+</script>
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+}
 </script>
 </body>
 </html>

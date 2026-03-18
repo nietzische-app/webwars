@@ -1,0 +1,31 @@
+{
+  "name": "Web Wars - Spider .io Game",
+  "short_name": "Web Wars",
+  "description": "Free online multiplayer spider .io game. Shoot webs, eat food, grow in size, and dominate the arena!",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0a0a0f",
+  "theme_color": "#9600ff",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
