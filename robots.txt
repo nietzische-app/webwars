@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://webwars.online/sitemap.xml
